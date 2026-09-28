@@ -94,7 +94,10 @@ let
 
     #"Confirmation Row Counts" =
         Table.Group(
-            #"Added Custom",
+            Table.SelectColumns(
+                #"Added Custom",
+                {"CNFRM_NBR"}
+            ),
             {"CNFRM_NBR"},
             {
                 {
