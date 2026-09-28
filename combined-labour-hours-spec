@@ -21,7 +21,7 @@ WITH LaborByConfirmation AS
 Anchor AS
 (
     SELECT
-        CONVERT(BIGINT, G1.[PLNT_CD]) AS [PLANT],
+        LTRIM(RTRIM(G1.[PLNT_CD])) AS [PLANT],
 
         CASE
             WHEN E1.[NM] IS NULL THEN CONCAT(G1.[PLNT_CD], '_Unknown')
@@ -31,10 +31,28 @@ Anchor AS
         END AS [BU_NAME],
 
         C1.[WRK_CNTR_CD] AS [WRK_CNTR],
-        CONVERT(BIGINT, A1.[CNFRM_NBR]) AS [CNFRM_NBR],
-        CONVERT(BIGINT, B1.[PROD_ORDR_NBR]) AS [PROD_ORDR_NBR],
-        CONVERT(BIGINT, A1.[OPR_NBR]) AS [OPR_NBR],
-        CONVERT(BIGINT, F1.[MTRL_NBR]) AS [MTRL_NBR],
+        A1.[CNFRM_NBR] AS [CNFRM_JOIN_KEY],
+        SUBSTRING(
+            A1.[CNFRM_NBR],
+            PATINDEX('%[^0 ]%', A1.[CNFRM_NBR] + ' '),
+            LEN(A1.[CNFRM_NBR])
+        ) AS [CNFRM_NBR],
+        SUBSTRING(
+            B1.[PROD_ORDR_NBR],
+            PATINDEX('%[^0 ]%', B1.[PROD_ORDR_NBR] + ' '),
+            LEN(B1.[PROD_ORDR_NBR])
+        ) AS [PROD_ORDR_NBR],
+        SUBSTRING(
+            A1.[OPR_NBR],
+            PATINDEX('%[^0 ]%', A1.[OPR_NBR] + ' '),
+            LEN(A1.[OPR_NBR])
+        ) AS [OPR_NBR],
+        F1.[MTRL_NBR] AS [MTRL_JOIN_KEY],
+        SUBSTRING(
+            F1.[MTRL_NBR],
+            PATINDEX('%[^0 ]%', F1.[MTRL_NBR] + ' '),
+            LEN(F1.[MTRL_NBR])
+        ) AS [MTRL_NBR],
         F1.[MTRL_DSC] AS [MTRL_DESCRIPTION],
         COALESCE(I1.[MRP_CNTRLR_CD], 'Unknown') AS [MRP_CNTRLR],
         L1.[ACT_TM],
@@ -73,14 +91,20 @@ Anchor AS
       AND A1.[OPR_PLNT_OID] IN (3,4)
       AND G1.[PLNT_CD] = '2088'
       AND A1.[ACT_CMPL_DT] >= '2024-01-01'
-      AND CONVERT(BIGINT, F1.[MTRL_NBR]) <> 0
+      AND NULLIF(
+            REPLACE(LTRIM(RTRIM(F1.[MTRL_NBR])), '0', ''),
+            ''
+          ) IS NOT NULL
 ),
 
 Employees AS
 (
     SELECT DISTINCT
-        CONVERT(BIGINT, L1.[CNFRM_NBR]) AS [CNFRM_NBR],
-        CONVERT(BIGINT, E1.[EMPL_NBR]) AS [EMPL_NBR],
+        L1.[CNFRM_NBR] AS [CNFRM_JOIN_KEY],
+        NULLIF(
+            LTRIM(RTRIM(CONVERT(VARCHAR(100), E1.[EMPL_NBR]))),
+            ''
+        ) AS [EMPL_NBR],
         E1.[DSPLY_NM] AS [EMPL_NAME]
     FROM [AP101_MPM].[dbo].[LBR_HIST] L1 WITH(NOLOCK)
     INNER JOIN [AP101_MPM].[dbo].[EMPL] E1 WITH(NOLOCK)
@@ -89,13 +113,20 @@ Employees AS
       AND L1.[DEL_FLG] = 0
       AND L1.[LBR_TYPE_CD] <> 'I'
       AND L1.[PAY_DT] >= '2024-01-01'
-      AND CONVERT(BIGINT, E1.[EMPL_NBR]) <> 0
+      AND NULLIF(
+            REPLACE(
+                LTRIM(RTRIM(CONVERT(VARCHAR(100), E1.[EMPL_NBR]))),
+                '0',
+                ''
+            ),
+            ''
+          ) IS NOT NULL
 ),
 
 Specifications AS
 (
     SELECT DISTINCT
-        CONVERT(BIGINT, M1.[MTRL_NBR]) AS [MTRL_NBR],
+        M1.[MTRL_NBR] AS [MTRL_JOIN_KEY],
         D1.[Name] AS [SPEC]
     FROM [DUN02_HESDATAMART01].[EnoviaData].[Documents] D1
     INNER JOIN [AP101_MPM].[dbo].[PROD_ORDR_BOM_DTL] DTL
@@ -119,6 +150,7 @@ ExpandedRows AS
         A1.[PLANT],
         A1.[BU_NAME],
         A1.[WRK_CNTR],
+        A1.[CNFRM_JOIN_KEY],
         A1.[CNFRM_NBR],
         A1.[PROD_ORDR_NBR],
         A1.[OPR_NBR],
@@ -135,17 +167,17 @@ ExpandedRows AS
         S1.[SPEC] AS [Specification]
     FROM Anchor A1
     LEFT JOIN Employees E1
-        ON E1.[CNFRM_NBR] = A1.[CNFRM_NBR]
+        ON E1.[CNFRM_JOIN_KEY] = A1.[CNFRM_JOIN_KEY]
     LEFT JOIN Specifications S1
-        ON S1.[MTRL_NBR] = A1.[MTRL_NBR]
+        ON S1.[MTRL_JOIN_KEY] = A1.[MTRL_JOIN_KEY]
 ),
 
 CountedRows AS
 (
     SELECT
         E1.*,
-        COUNT_BIG(*) OVER (
-            PARTITION BY E1.[CNFRM_NBR]
+        COUNT(*) OVER (
+            PARTITION BY E1.[CNFRM_JOIN_KEY]
         ) AS [CNFRM_ROW_COUNT]
     FROM ExpandedRows E1
 )
@@ -184,12 +216,12 @@ FROM CountedRows
         Table.TransformColumnTypes(
             Source,
             {
-                {"PLANT", Int64.Type},
-                {"CNFRM_NBR", Int64.Type},
-                {"PROD_ORDR_NBR", Int64.Type},
-                {"OPR_NBR", Int64.Type},
-                {"MTRL_NBR", Int64.Type},
-                {"Employee Number", Int64.Type},
+                {"PLANT", type text},
+                {"CNFRM_NBR", type text},
+                {"PROD_ORDR_NBR", type text},
+                {"OPR_NBR", type text},
+                {"MTRL_NBR", type text},
+                {"Employee Number", type text},
                 {"ACT_TM_WEIGHTED", type number}
             }
         ),
