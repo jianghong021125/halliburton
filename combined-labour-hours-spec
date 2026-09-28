@@ -1,0 +1,95 @@
+let
+    Source = #"Anchor Table",
+
+    #"Removed Other Columns" =
+        Table.SelectColumns(
+            Source,
+            {
+                "PLANT",
+                "BU_NAME",
+                "WRK_CNTR",
+                "CNFRM_NBR",
+                "PROD_ORDR_NBR",
+                "OPR_NBR",
+                "MTRL_NBR",
+                "MTRL_DESCRIPTION",
+                "MRP_CNTRLR",
+                "ACT_TM",
+                "QTY_CMPL",
+                "ACT_STRT_DT",
+                "ACT_CMPL_DT",
+                "OPRN_DESCRIPTION"
+            }
+        ),
+
+    #"Merged Queries" =
+        Table.NestedJoin(
+            #"Removed Other Columns",
+            {"CNFRM_NBR"},
+            #"Employee -> Confirmation Number",
+            {"CNFRM_NBR"},
+            "Employee -> Confirmation Number",
+            JoinKind.LeftOuter
+        ),
+
+    #"Expanded Employee -> Confirmation Number" =
+        Table.ExpandTableColumn(
+            #"Merged Queries",
+            "Employee -> Confirmation Number",
+            {"EMPL_NBR", "EMPL_NAME"},
+            {
+                "Employee -> Confirmation Number.EMPL_NBR",
+                "Employee -> Confirmation Number.EMPL_NAME"
+            }
+        ),
+
+    #"Merged Queries1" =
+        Table.NestedJoin(
+            #"Expanded Employee -> Confirmation Number",
+            {"MTRL_NBR"},
+            #"Specification <-> Material Number ( AP SPECS )",
+            {"MTRL_NBR"},
+            "Specification <-> Material Number ( AP101_MPM )",
+            JoinKind.LeftOuter
+        ),
+
+    #"Expanded Specification <-> Material Number ( AP101_MPM )1" =
+        Table.ExpandTableColumn(
+            #"Merged Queries1",
+            "Specification <-> Material Number ( AP101_MPM )",
+            {"SPEC"},
+            {"Specification <-> Material Number ( AP101_MPM ).SPEC"}
+        ),
+
+    #"Renamed Columns" =
+        Table.RenameColumns(
+            #"Expanded Specification <-> Material Number ( AP101_MPM )1",
+            {
+                {"Employee -> Confirmation Number.EMPL_NBR", "Employee Number"},
+                {"Employee -> Confirmation Number.EMPL_NAME", "Employee Name"},
+                {"Specification <-> Material Number ( AP101_MPM ).SPEC", "Specification"}
+            }
+        ),
+
+    #"Added Custom" =
+        Table.AddColumn(
+            #"Renamed Columns",
+            "Specification Pillar",
+            each
+                if [Specification] = null then
+                    null
+                else
+                    Text.BeforeDelimiter([Specification], "-")
+                    & "-"
+                    &
+                    Text.Select(
+                        Text.BeforeDelimiter(
+                            Text.AfterDelimiter([Specification], "-"),
+                            "-"
+                        ),
+                        {"A".."Z"}
+                    ),
+            type text
+        )
+in
+    #"Added Custom"
