@@ -113,16 +113,6 @@ EmployeeRows AS
       AND L1.[PAY_DT] >= '2024-01-01'
 ),
 
-Employees AS
-(
-    SELECT
-        E1.*,
-        COUNT(*) OVER (
-            PARTITION BY E1.[CNFRM_NBR]
-        ) AS [EMPLOYEE_ROW_COUNT]
-    FROM EmployeeRows E1
-),
-
 SpecificationRows AS
 (
     SELECT DISTINCT
@@ -148,16 +138,6 @@ SpecificationRows AS
       AND PL1.[PLNT_CD] = '2088'
 ),
 
-Specifications AS
-(
-    SELECT
-        S1.*,
-        COUNT(*) OVER (
-            PARTITION BY S1.[MTRL_NBR]
-        ) AS [SPECIFICATION_ROW_COUNT]
-    FROM SpecificationRows S1
-),
-
 ExpandedRows AS
 (
     SELECT
@@ -177,16 +157,11 @@ ExpandedRows AS
         A1.[OPRN_DESCRIPTION],
         E1.[EMPL_NBR] AS [Employee Number],
         E1.[EMPL_NAME] AS [Employee Name],
-        S1.[SPEC] AS [Specification],
-        -- Confirmation number is unique in Anchor, so the final fan-out is
-        -- employee matches multiplied by specification matches.
-        COALESCE(E1.[EMPLOYEE_ROW_COUNT], 1)
-            * COALESCE(S1.[SPECIFICATION_ROW_COUNT], 1)
-            AS [CNFRM_ROW_COUNT]
+        S1.[SPEC] AS [Specification]
     FROM Anchor A1
-    LEFT JOIN Employees E1
+    LEFT JOIN EmployeeRows E1
         ON E1.[CNFRM_NBR] = A1.[CNFRM_NBR]
-    LEFT JOIN Specifications S1
+    LEFT JOIN SpecificationRows S1
         ON S1.[MTRL_NBR] = A1.[MTRL_NBR]
 )
 
@@ -210,7 +185,12 @@ SELECT
     CAST(
         [ACT_TM]
         / NULLIF(
-            CAST([CNFRM_ROW_COUNT] AS DECIMAL(19,4)),
+            CAST(
+                COUNT(*) OVER (
+                    PARTITION BY [CNFRM_NBR]
+                )
+                AS DECIMAL(19,4)
+            ),
             0
         )
         AS DECIMAL(28,12)
@@ -220,9 +200,40 @@ FROM ExpandedRows
             ]
         ),
 
+    #"Formatted Date Columns" =
+        Table.TransformColumns(
+            Source,
+            {
+                {
+                    "ACT_STRT_DT",
+                    each
+                        if _ = null then
+                            null
+                        else
+                            Date.ToText(
+                                Date.From(_),
+                                [Format = "M/dd/yyyy", Culture = "en-US"]
+                            ),
+                    type text
+                },
+                {
+                    "ACT_CMPL_DT",
+                    each
+                        if _ = null then
+                            null
+                        else
+                            Date.ToText(
+                                Date.From(_),
+                                [Format = "M/dd/yyyy", Culture = "en-US"]
+                            ),
+                    type text
+                }
+            }
+        ),
+
     #"Added Specification Pillar" =
         Table.AddColumn(
-            Source,
+            #"Formatted Date Columns",
             "Specification Pillar",
             each
                 if [Specification] = null then
@@ -241,9 +252,21 @@ FROM ExpandedRows
             type text
         ),
 
+    #"Removed Null Specifications" =
+        Table.SelectRows(
+            #"Added Specification Pillar",
+            each [Specification] <> null
+        ),
+
+    #"Filtered ES-T Specification Pillar" =
+        Table.SelectRows(
+            #"Removed Null Specifications",
+            each [Specification Pillar] = "ES-T"
+        ),
+
     #"Reordered Columns" =
         Table.ReorderColumns(
-            #"Added Specification Pillar",
+            #"Filtered ES-T Specification Pillar",
             {
                 "PLANT",
                 "BU_NAME",
