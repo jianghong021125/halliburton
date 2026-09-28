@@ -90,6 +90,58 @@ let
                         {"A".."Z"}
                     ),
             type text
+        ),
+
+    #"Confirmation Row Counts" =
+        Table.Group(
+            #"Added Custom",
+            {"CNFRM_NBR"},
+            {
+                {
+                    "CNFRM_ROW_COUNT",
+                    each Table.RowCount(_),
+                    Int64.Type
+                }
+            }
+        ),
+
+    #"Merged Confirmation Row Counts" =
+        Table.NestedJoin(
+            #"Added Custom",
+            {"CNFRM_NBR"},
+            #"Confirmation Row Counts",
+            {"CNFRM_NBR"},
+            "Confirmation Counts",
+            JoinKind.LeftOuter
+        ),
+
+    #"Expanded Confirmation Row Counts" =
+        Table.ExpandTableColumn(
+            #"Merged Confirmation Row Counts",
+            "Confirmation Counts",
+            {"CNFRM_ROW_COUNT"},
+            {"CNFRM_ROW_COUNT"}
+        ),
+
+    #"Added ACT_TM_WEIGHTED" =
+        Table.AddColumn(
+            #"Expanded Confirmation Row Counts",
+            "ACT_TM_WEIGHTED",
+            each
+                if [ACT_TM] = null
+                    or [CNFRM_ROW_COUNT] = null
+                    or [CNFRM_ROW_COUNT] = 0
+                then
+                    null
+                else
+                    [ACT_TM] / [CNFRM_ROW_COUNT],
+            type number
+        ),
+
+    #"Removed ACT_TM and Row Count" =
+        Table.RemoveColumns(
+            #"Added ACT_TM_WEIGHTED",
+            {"ACT_TM", "CNFRM_ROW_COUNT"}
         )
 in
-    #"Added Custom"
+    #"Removed ACT_TM and Row Count"
