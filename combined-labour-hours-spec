@@ -31,7 +31,6 @@ Anchor AS
         END AS [BU_NAME],
 
         C1.[WRK_CNTR_CD] AS [WRK_CNTR],
-        A1.[CNFRM_NBR] AS [CNFRM_JOIN_KEY],
         SUBSTRING(
             A1.[CNFRM_NBR],
             PATINDEX('%[^0 ]%', A1.[CNFRM_NBR] + ' '),
@@ -47,7 +46,6 @@ Anchor AS
             PATINDEX('%[^0 ]%', A1.[OPR_NBR] + ' '),
             LEN(A1.[OPR_NBR])
         ) AS [OPR_NBR],
-        F1.[MTRL_NBR] AS [MTRL_JOIN_KEY],
         SUBSTRING(
             F1.[MTRL_NBR],
             PATINDEX('%[^0 ]%', F1.[MTRL_NBR] + ' '),
@@ -91,16 +89,16 @@ Anchor AS
       AND A1.[OPR_PLNT_OID] IN (3,4)
       AND G1.[PLNT_CD] = '2088'
       AND A1.[ACT_CMPL_DT] >= '2024-01-01'
-      AND NULLIF(
-            REPLACE(LTRIM(RTRIM(F1.[MTRL_NBR])), '0', ''),
-            ''
-          ) IS NOT NULL
 ),
 
 EmployeeRows AS
 (
     SELECT DISTINCT
-        L1.[CNFRM_NBR] AS [CNFRM_JOIN_KEY],
+        SUBSTRING(
+            L1.[CNFRM_NBR],
+            PATINDEX('%[^0 ]%', L1.[CNFRM_NBR] + ' '),
+            LEN(L1.[CNFRM_NBR])
+        ) AS [CNFRM_NBR],
         NULLIF(
             LTRIM(RTRIM(CONVERT(VARCHAR(100), E1.[EMPL_NBR]))),
             ''
@@ -113,14 +111,6 @@ EmployeeRows AS
       AND L1.[DEL_FLG] = 0
       AND L1.[LBR_TYPE_CD] <> 'I'
       AND L1.[PAY_DT] >= '2024-01-01'
-      AND NULLIF(
-            REPLACE(
-                LTRIM(RTRIM(CONVERT(VARCHAR(100), E1.[EMPL_NBR]))),
-                '0',
-                ''
-            ),
-            ''
-          ) IS NOT NULL
 ),
 
 Employees AS
@@ -128,7 +118,7 @@ Employees AS
     SELECT
         E1.*,
         COUNT(*) OVER (
-            PARTITION BY E1.[CNFRM_JOIN_KEY]
+            PARTITION BY E1.[CNFRM_NBR]
         ) AS [EMPLOYEE_ROW_COUNT]
     FROM EmployeeRows E1
 ),
@@ -136,7 +126,11 @@ Employees AS
 SpecificationRows AS
 (
     SELECT DISTINCT
-        M1.[MTRL_NBR] AS [MTRL_JOIN_KEY],
+        SUBSTRING(
+            M1.[MTRL_NBR],
+            PATINDEX('%[^0 ]%', M1.[MTRL_NBR] + ' '),
+            LEN(M1.[MTRL_NBR])
+        ) AS [MTRL_NBR],
         D1.[Name] AS [SPEC]
     FROM [DUN02_HESDATAMART01].[EnoviaData].[Documents] D1
     INNER JOIN [AP101_MPM].[dbo].[PROD_ORDR_BOM_DTL] DTL
@@ -159,7 +153,7 @@ Specifications AS
     SELECT
         S1.*,
         COUNT(*) OVER (
-            PARTITION BY S1.[MTRL_JOIN_KEY]
+            PARTITION BY S1.[MTRL_NBR]
         ) AS [SPECIFICATION_ROW_COUNT]
     FROM SpecificationRows S1
 ),
@@ -170,7 +164,6 @@ ExpandedRows AS
         A1.[PLANT],
         A1.[BU_NAME],
         A1.[WRK_CNTR],
-        A1.[CNFRM_JOIN_KEY],
         A1.[CNFRM_NBR],
         A1.[PROD_ORDR_NBR],
         A1.[OPR_NBR],
@@ -192,9 +185,9 @@ ExpandedRows AS
             AS [CNFRM_ROW_COUNT]
     FROM Anchor A1
     LEFT JOIN Employees E1
-        ON E1.[CNFRM_JOIN_KEY] = A1.[CNFRM_JOIN_KEY]
+        ON E1.[CNFRM_NBR] = A1.[CNFRM_NBR]
     LEFT JOIN Specifications S1
-        ON S1.[MTRL_JOIN_KEY] = A1.[MTRL_JOIN_KEY]
+        ON S1.[MTRL_NBR] = A1.[MTRL_NBR]
 )
 
 SELECT
@@ -227,23 +220,9 @@ FROM ExpandedRows
             ]
         ),
 
-    #"Changed Type" =
-        Table.TransformColumnTypes(
-            Source,
-            {
-                {"PLANT", type text},
-                {"CNFRM_NBR", type text},
-                {"PROD_ORDR_NBR", type text},
-                {"OPR_NBR", type text},
-                {"MTRL_NBR", type text},
-                {"Employee Number", type text},
-                {"ACT_TM_WEIGHTED", type number}
-            }
-        ),
-
     #"Added Specification Pillar" =
         Table.AddColumn(
-            #"Changed Type",
+            Source,
             "Specification Pillar",
             each
                 if [Specification] = null then
