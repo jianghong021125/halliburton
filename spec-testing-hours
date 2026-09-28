@@ -1,0 +1,205 @@
+let
+    Source =
+        Sql.Database(
+            "SCGReporting",
+            "PowerBI",
+            [
+                Query = "
+
+SELECT
+    G1.[PLNT_CD] AS PLANT,
+
+    CONCAT(
+        DATEPART(YEAR, A1.[ACT_CMPL_DT]),
+        '_',
+        RIGHT(100 + DATEPART(MONTH, A1.[ACT_CMPL_DT]), 2)
+    ) AS CMPL_YEAR_MO,
+
+    IIF(
+        DATEPART(MONTH, GETDATE()) = DATEPART(MONTH, A1.[ACT_CMPL_DT]),
+        1,
+        0
+    ) AS CURRENT_YEAR_MO,
+
+    IIF(
+        E1.[NM] IS NULL,
+        CONCAT(G1.[PLNT_CD], '_Unknown'),
+        IIF(
+            C1.[WRK_CNTR_CD] IN ('MH775100', 'CM783100'),
+            'Mfg Sing3 Material Science Lab',
+            E1.[NM]
+        )
+    ) AS BU_NAME,
+
+    CASE
+        WHEN C1.[WRK_CNTR_CD] IN ('MH775100', 'CM783100') THEN 1
+        WHEN E1.[NM] IS NULL THEN 1
+        WHEN E1.[NM] LIKE 'Mfg.%' THEN 1
+        WHEN E1.[NM] LIKE 'M1.%' THEN 1
+        ELSE 0
+    END AS SUPPORT,
+
+    D1.[COST_CNTR_CD] AS COST_CNTR,
+
+    IIF(
+        C1.[WRK_CNTR_CD] IN ('MH775100', 'CM783100'),
+        1,
+        0
+    ) AS MSL_BU,
+
+    C1.[WRK_CNTR_CD] AS WRK_CNTR,
+
+    SUBSTRING(
+        A1.[CNFRM_NBR],
+        PATINDEX('%[^0 ]%', A1.[CNFRM_NBR] + ' '),
+        LEN(A1.[CNFRM_NBR])
+    ) AS CNFRM_NBR,
+
+    SUBSTRING(
+        B1.[PROD_ORDR_NBR],
+        PATINDEX('%[^0 ]%', B1.[PROD_ORDR_NBR] + ' '),
+        LEN(B1.[PROD_ORDR_NBR])
+    ) AS PROD_ORDR_NBR,
+
+    SUBSTRING(
+        A1.[OPR_NBR],
+        PATINDEX('%[^0 ]%', A1.[OPR_NBR] + ' '),
+        LEN(A1.[OPR_NBR])
+    ) AS OPR_NBR,
+
+    H1.[PROD_ORDR_TYPE_CD] AS ORDR_TYPE,
+
+    SUBSTRING(
+        F1.[MTRL_NBR],
+        PATINDEX('%[^0 ]%', F1.[MTRL_NBR] + ' '),
+        LEN(F1.[MTRL_NBR])
+    ) AS MTRL_NBR,
+
+    F1.[MTRL_DSC] AS MTRL_DESCRIPTION,
+
+    IIF(
+        I1.[MRP_CNTRLR_CD] IS NULL,
+        'Unknown',
+        I1.[MRP_CNTRLR_CD]
+    ) AS MRP_CNTRLR,
+
+    A1.[STP_TM],
+    A1.[RUN_TM],
+
+    CAST(
+        (A1.[OPR_QTY] * A1.[RUN_TM]) + A1.[STP_TM]
+        AS DECIMAL(18,4)
+    ) AS STD_TM,
+
+    T1.[ACT_LBR_HR] AS ACT_TM,
+    U1.[ACT_STP_HR] AS ACT_STP,
+
+    A1.[OPR_QTY],
+    A1.[OPR_SCRP_QTY] AS SCRP_QTY,
+
+    T1.[QTY_CMPL] / A1.[UOM_CNVRSN_RATIO] AS QTY_CMPL,
+
+    A1.[ACT_STRT_DT],
+    A1.[ACT_CMPL_DT],
+    A1.[CNTRL_KEY],
+    A1.[DSC] AS OPRN_DESCRIPTION,
+
+    CONCAT(
+        'http://ap1mfgweb/MPM_Rpts/OrderLaborHistoryDisplay.aspx?OrderNbr=',
+        B1.[PROD_ORDR_NBR]
+    ) AS LBR_LINK
+
+FROM [AP101_MPM].[dbo].[PROD_ORDR_OPR] A1 WITH(NOLOCK)
+
+LEFT JOIN [AP101_MPM].[dbo].[PROD_ORDR] B1 WITH(NOLOCK)
+    ON B1.OID = A1.[PROD_ORDR_OID]
+
+LEFT JOIN [AP101_MPM].[dbo].[WRK_CNTR] C1 WITH(NOLOCK)
+    ON C1.OID = A1.[WRK_CNTR_OID]
+
+LEFT JOIN [AP101_MPM].[dbo].[COST_CNTR] D1 WITH(NOLOCK)
+    ON D1.OID = C1.[COST_CNTR_OID]
+
+LEFT JOIN [AP101_MPM].[dbo].[BSNS_UNIT] E1 WITH(NOLOCK)
+    ON E1.OID = D1.[BSNS_UNIT_OID]
+
+LEFT JOIN [AP101_MPM].[dbo].[MTRL] F1 WITH(NOLOCK)
+    ON F1.OID = B1.[MTRL_OID]
+
+LEFT JOIN [AP101_MPM].[dbo].[PLNT] G1 WITH(NOLOCK)
+    ON G1.OID = A1.[OPR_PLNT_OID]
+
+LEFT JOIN [AP101_MPM].[dbo].[XPROD_ORDR_TYPE] H1 WITH(NOLOCK)
+    ON H1.OID = B1.[PROD_ORDR_TYPE_OID]
+
+LEFT JOIN [AP101_MPM].[dbo].[MRP_CNTRLR] I1 WITH(NOLOCK)
+    ON I1.OID = B1.[MRP_CNTRLR_OID]
+
+LEFT JOIN (
+    SELECT
+        [CNFRM_NBR],
+        CAST(SUM([LBR_SCNDS]) / 3600.00 AS DECIMAL(18,4)) AS [ACT_LBR_HR],
+        SUM([QTY_CMPL]) AS [QTY_CMPL]
+    FROM [AP101_MPM].[dbo].[LBR_HIST] WITH(NOLOCK)
+    WHERE PLNT_OID IN (3,4)
+      AND DEL_FLG = 0
+      AND LBR_TYPE_CD <> 'I'
+    GROUP BY [CNFRM_NBR]
+) T1
+    ON T1.[CNFRM_NBR] = A1.[CNFRM_NBR]
+
+LEFT JOIN (
+    SELECT
+        [CNFRM_NBR],
+        CAST(SUM([LBR_SCNDS]) / 3600.00 AS DECIMAL(18,4)) AS [ACT_STP_HR]
+    FROM [AP101_MPM].[dbo].[LBR_HIST] WITH(NOLOCK)
+    WHERE PLNT_OID IN (3,4)
+      AND DEL_FLG = 0
+      AND LBR_TYPE_CD = 'S'
+    GROUP BY [CNFRM_NBR]
+) U1
+    ON U1.[CNFRM_NBR] = A1.[CNFRM_NBR]
+
+
+    
+
+WHERE
+    A1.[MPM_ORDR_OPR_STAT_CD] = 'C'
+    AND A1.[OPR_PLNT_OID] IN (3,4)
+    AND G1.[PLNT_CD] = '2088'
+    AND A1.[ACT_CMPL_DT] >= '2024-01-01'
+
+"
+            ]
+        ),
+
+    #"Removed Columns" =
+        Table.RemoveColumns(
+            Source,
+            {
+                "CURRENT_YEAR_MO",
+                "SUPPORT",
+                "MSL_BU",
+                "STP_TM",
+                "RUN_TM",
+                "STD_TM",
+                "ACT_STP",
+                "LBR_LINK"
+            }
+        ),
+
+    #"Changed Type" =
+        Table.TransformColumnTypes(
+            #"Removed Columns",
+            {
+                {"PLANT", Int64.Type},
+                {"COST_CNTR", Int64.Type},
+                {"CNFRM_NBR", Int64.Type},
+                {"PROD_ORDR_NBR", Int64.Type},
+                {"OPR_NBR", Int64.Type},
+                {"MTRL_NBR", Int64.Type}
+            }
+        ),
+    #"Sorted Rows" = Table.Sort(#"Changed Type",{{"CMPL_YEAR_MO", Order.Descending}})
+in
+    #"Sorted Rows"
