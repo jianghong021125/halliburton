@@ -1,0 +1,34 @@
+let
+    Source = Sql.Database(
+        "SCGReporting",
+        "AP101_MPM",
+        [
+            Query="
+SELECT DISTINCT
+    SUBSTRING(
+        A1.[CNFRM_NBR],
+        PATINDEX('%[^0 ]%', A1.[CNFRM_NBR] + ' '),
+        LEN(A1.[CNFRM_NBR])
+    ) AS CNFRM_NBR,
+    B1.[EMPL_NBR] AS EMPL_NBR,
+    B1.[DSPLY_NM] AS EMPL_NAME
+FROM [AP101_MPM].[dbo].[LBR_HIST] A1 WITH (NOLOCK)
+INNER JOIN [AP101_MPM].[dbo].[EMPL] B1 WITH (NOLOCK)
+    ON B1.OID = A1.[EMPL_OID]
+WHERE A1.PLNT_OID = 3
+    AND A1.DEL_FLG = 0
+    AND A1.LBR_TYPE_CD <> 'I'
+    AND A1.[PAY_DT] >= '2024-01-01'
+"
+        ]
+    ),
+    #"Changed Type" = Table.TransformColumnTypes(
+        Source,
+        {
+            {"CNFRM_NBR", Int64.Type},
+            {"EMPL_NBR", Int64.Type}
+        }
+    ),
+    #"Removed Duplicates" = Table.Distinct(#"Changed Type")
+in
+    #"Removed Duplicates"
