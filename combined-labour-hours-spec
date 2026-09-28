@@ -97,7 +97,7 @@ Anchor AS
           ) IS NOT NULL
 ),
 
-Employees AS
+EmployeeRows AS
 (
     SELECT DISTINCT
         L1.[CNFRM_NBR] AS [CNFRM_JOIN_KEY],
@@ -123,7 +123,17 @@ Employees AS
           ) IS NOT NULL
 ),
 
-Specifications AS
+Employees AS
+(
+    SELECT
+        E1.*,
+        COUNT(*) OVER (
+            PARTITION BY E1.[CNFRM_JOIN_KEY]
+        ) AS [EMPLOYEE_ROW_COUNT]
+    FROM EmployeeRows E1
+),
+
+SpecificationRows AS
 (
     SELECT DISTINCT
         M1.[MTRL_NBR] AS [MTRL_JOIN_KEY],
@@ -142,6 +152,16 @@ Specifications AS
     WHERE D1.[latest] = 1
       AND D1.[current] = 'Production Release'
       AND PL1.[PLNT_CD] = '2088'
+),
+
+Specifications AS
+(
+    SELECT
+        S1.*,
+        COUNT(*) OVER (
+            PARTITION BY S1.[MTRL_JOIN_KEY]
+        ) AS [SPECIFICATION_ROW_COUNT]
+    FROM SpecificationRows S1
 ),
 
 ExpandedRows AS
@@ -164,22 +184,17 @@ ExpandedRows AS
         A1.[OPRN_DESCRIPTION],
         E1.[EMPL_NBR] AS [Employee Number],
         E1.[EMPL_NAME] AS [Employee Name],
-        S1.[SPEC] AS [Specification]
+        S1.[SPEC] AS [Specification],
+        -- Confirmation number is unique in Anchor, so the final fan-out is
+        -- employee matches multiplied by specification matches.
+        COALESCE(E1.[EMPLOYEE_ROW_COUNT], 1)
+            * COALESCE(S1.[SPECIFICATION_ROW_COUNT], 1)
+            AS [CNFRM_ROW_COUNT]
     FROM Anchor A1
     LEFT JOIN Employees E1
         ON E1.[CNFRM_JOIN_KEY] = A1.[CNFRM_JOIN_KEY]
     LEFT JOIN Specifications S1
         ON S1.[MTRL_JOIN_KEY] = A1.[MTRL_JOIN_KEY]
-),
-
-CountedRows AS
-(
-    SELECT
-        E1.*,
-        COUNT(*) OVER (
-            PARTITION BY E1.[CNFRM_JOIN_KEY]
-        ) AS [CNFRM_ROW_COUNT]
-    FROM ExpandedRows E1
 )
 
 SELECT
@@ -207,7 +222,7 @@ SELECT
         )
         AS DECIMAL(28,12)
     ) AS [ACT_TM_WEIGHTED]
-FROM CountedRows
+FROM ExpandedRows
 "
             ]
         ),
