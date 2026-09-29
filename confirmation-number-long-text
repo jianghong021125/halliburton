@@ -83,6 +83,7 @@ SELECT
 FROM [dbo].[PROD_ORDR_OPR] OPR
 INNER JOIN [dbo].[PROD_ORDR_OPR_LNG] LNG
     ON OPR.[OID] = LNG.[OID]
+WHERE OPR.[OPR_PLNT_OID] = 3
 "
             ]
         ),
