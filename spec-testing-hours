@@ -1,4 +1,8 @@
 let
+    // Power BI query name: Anchor Table Testing.
+    ExcludedOperation = "SNG ICAT REVIEW PROCESS FOR TESTING ORN",
+    RequiredOperationText = "TEST",
+
     Source =
         Sql.Database(
             "SCGReporting",
@@ -16,12 +20,6 @@ SELECT
     ) AS CMPL_YEAR_MO,
 
     IIF(
-        DATEPART(MONTH, GETDATE()) = DATEPART(MONTH, A1.[ACT_CMPL_DT]),
-        1,
-        0
-    ) AS CURRENT_YEAR_MO,
-
-    IIF(
         E1.[NM] IS NULL,
         CONCAT(G1.[PLNT_CD], '_Unknown'),
         IIF(
@@ -31,21 +29,7 @@ SELECT
         )
     ) AS BU_NAME,
 
-    CASE
-        WHEN C1.[WRK_CNTR_CD] IN ('MH775100', 'CM783100') THEN 1
-        WHEN E1.[NM] IS NULL THEN 1
-        WHEN E1.[NM] LIKE 'Mfg.%' THEN 1
-        WHEN E1.[NM] LIKE 'M1.%' THEN 1
-        ELSE 0
-    END AS SUPPORT,
-
     D1.[COST_CNTR_CD] AS COST_CNTR,
-
-    IIF(
-        C1.[WRK_CNTR_CD] IN ('MH775100', 'CM783100'),
-        1,
-        0
-    ) AS MSL_BU,
 
     C1.[WRK_CNTR_CD] AS WRK_CNTR,
 
@@ -83,16 +67,7 @@ SELECT
         I1.[MRP_CNTRLR_CD]
     ) AS MRP_CNTRLR,
 
-    A1.[STP_TM],
-    A1.[RUN_TM],
-
-    CAST(
-        (A1.[OPR_QTY] * A1.[RUN_TM]) + A1.[STP_TM]
-        AS DECIMAL(18,4)
-    ) AS STD_TM,
-
     T1.[ACT_LBR_HR] AS ACT_TM,
-    U1.[ACT_STP_HR] AS ACT_STP,
 
     A1.[OPR_QTY],
     A1.[OPR_SCRP_QTY] AS SCRP_QTY,
@@ -102,12 +77,7 @@ SELECT
     A1.[ACT_STRT_DT],
     A1.[ACT_CMPL_DT],
     A1.[CNTRL_KEY],
-    A1.[DSC] AS OPRN_DESCRIPTION,
-
-    CONCAT(
-        'http://ap1mfgweb/MPM_Rpts/OrderLaborHistoryDisplay.aspx?OrderNbr=',
-        B1.[PROD_ORDR_NBR]
-    ) AS LBR_LINK
+    A1.[DSC] AS OPRN_DESCRIPTION
 
 FROM [AP101_MPM].[dbo].[PROD_ORDR_OPR] A1 WITH(NOLOCK)
 
@@ -148,21 +118,6 @@ LEFT JOIN (
 ) T1
     ON T1.[CNFRM_NBR] = A1.[CNFRM_NBR]
 
-LEFT JOIN (
-    SELECT
-        [CNFRM_NBR],
-        CAST(SUM([LBR_SCNDS]) / 3600.00 AS DECIMAL(18,4)) AS [ACT_STP_HR]
-    FROM [AP101_MPM].[dbo].[LBR_HIST] WITH(NOLOCK)
-    WHERE PLNT_OID IN (3,4)
-      AND DEL_FLG = 0
-      AND LBR_TYPE_CD = 'S'
-    GROUP BY [CNFRM_NBR]
-) U1
-    ON U1.[CNFRM_NBR] = A1.[CNFRM_NBR]
-
-
-    
-
 WHERE
     A1.[MPM_ORDR_OPR_STAT_CD] = 'C'
     AND A1.[OPR_PLNT_OID] IN (3,4)
@@ -173,33 +128,38 @@ WHERE
             ]
         ),
 
-    #"Removed Columns" =
-        Table.RemoveColumns(
+    // Identifiers stay as text; SQL already removes leading zeroes/spaces.
+    #"Changed Type" =
+        Table.TransformColumnTypes(
             Source,
             {
-                "CURRENT_YEAR_MO",
-                "SUPPORT",
-                "MSL_BU",
-                "STP_TM",
-                "RUN_TM",
-                "STD_TM",
-                "ACT_STP",
-                "LBR_LINK"
+                {"PLANT", type text},
+                {"COST_CNTR", type text},
+                {"CNFRM_NBR", type text},
+                {"PROD_ORDR_NBR", type text},
+                {"OPR_NBR", type text},
+                {"MTRL_NBR", type text}
             }
         ),
 
-    #"Changed Type" =
-        Table.TransformColumnTypes(
-            #"Removed Columns",
-            {
-                {"PLANT", Int64.Type},
-                {"COST_CNTR", Int64.Type},
-                {"CNFRM_NBR", Int64.Type},
-                {"PROD_ORDR_NBR", Int64.Type},
-                {"OPR_NBR", Int64.Type},
-                {"MTRL_NBR", Int64.Type}
-            }
+    #"Excluded Review Operation" =
+        Table.SelectRows(
+            #"Changed Type",
+            each [OPRN_DESCRIPTION] <> ExcludedOperation
         ),
-    #"Sorted Rows" = Table.Sort(#"Changed Type",{{"CMPL_YEAR_MO", Order.Descending}})
+
+    #"Retained Testing Operations" =
+        Table.SelectRows(
+            #"Excluded Review Operation",
+            each
+                if [OPRN_DESCRIPTION] = null then
+                    false
+                else
+                    Text.Contains(
+                        [OPRN_DESCRIPTION],
+                        RequiredOperationText,
+                        Comparer.OrdinalIgnoreCase
+                    )
+        )
 in
-    #"Sorted Rows"
+    #"Retained Testing Operations"
