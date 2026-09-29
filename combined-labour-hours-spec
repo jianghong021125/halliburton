@@ -7,7 +7,7 @@ let
         Table.SelectColumns(
             Source,
             {
-                "PLANT", "BU_NAME", "WRK_CNTR", "CNFRM_NBR",
+                "PLANT", "CMPL_YEAR_MO", "BU_NAME", "WRK_CNTR", "CNFRM_NBR",
                 "PROD_ORDR_NBR", "OPR_NBR", "MTRL_NBR",
                 "MTRL_DESCRIPTION", "MRP_CNTRLR", "ACT_TM",
                 "QTY_CMPL", "ACT_STRT_DT", "ACT_CMPL_DT",
