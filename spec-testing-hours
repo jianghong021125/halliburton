@@ -1,8 +1,5 @@
 let
     // Power BI query name: Anchor Table Testing.
-    ExcludedOperation = "SNG ICAT REVIEW PROCESS FOR TESTING ORN",
-    RequiredOperationText = "TEST",
-
     Source =
         Sql.Database(
             "SCGReporting",
@@ -138,21 +135,22 @@ WHERE
             }
         ),
 
-    #"Excluded Review Operation" =
-        Table.SelectRows(
+    #"Merged Long Text" =
+        Table.NestedJoin(
             #"Changed Type",
-            each [OPRN_DESCRIPTION] <> ExcludedOperation
+            {"CNFRM_NBR"},
+            #"Confirmation Number <-> LNG_TXT",
+            {"CNFRM_NBR"},
+            "Long Text",
+            JoinKind.LeftOuter
         ),
 
-    #"Retained Testing Operations" =
-        Table.SelectRows(
-            #"Excluded Review Operation",
-            each
-                Text.Contains(
-                    [OPRN_DESCRIPTION],
-                    RequiredOperationText,
-                    Comparer.OrdinalIgnoreCase
-                ) = true
+    #"Expanded Long Text" =
+        Table.ExpandTableColumn(
+            #"Merged Long Text",
+            "Long Text",
+            {"LNG_TXT", "P_LNG_TXT"},
+            {"LNG_TXT", "P_LNG_TXT"}
         )
 in
-    #"Retained Testing Operations"
+    #"Expanded Long Text"

@@ -1,6 +1,33 @@
 let
-    // Power BI query name: Testing Hours by PF.
-    RequiredPillar = "ES-T",
+    // Power BI query name: Testing Hours By PF.
+    CharactersAfterPrefix = 13,
+    SpecDelimiters = {
+        ",", ";", ":", ".", "/", Character.FromNumber(92), "|",
+        "(", ")", "[", "]", "{", "}", "<", ">",
+        Character.FromNumber(34), "'", "!", "?", "=", "+", "&",
+        "#(cr)", "#(lf)", "#(tab)"
+    },
+
+    ExtractSpecs = (value as nullable text) as list =>
+        if value = null then {} else
+        let
+            Starts = List.Buffer(Text.PositionOf(value, "ES-", Occurrence.All)),
+            Boundaries = Starts & {Text.Length(value)},
+            Specs = List.Transform(
+                List.Positions(Starts),
+                (index) =>
+                    let
+                        Start = Starts{index},
+                        Length = List.Min({3 + CharactersAfterPrefix, Boundaries{index + 1} - Start}),
+                        Fragment = Text.Range(value, Start, Length),
+                        Stop = Text.PositionOfAny(Fragment, SpecDelimiters),
+                        Token = if Stop < 0 then Fragment else Text.Start(Fragment, Stop)
+                    in
+                        Text.Remove(Token, {" "})
+            )
+        in
+            List.Select(Specs, each Text.Length(_) > 3),
+
     Source = #"Anchor Table Testing",
 
     #"Selected Anchor Columns" =
@@ -11,7 +38,7 @@ let
                 "PROD_ORDR_NBR", "OPR_NBR", "MTRL_NBR",
                 "MTRL_DESCRIPTION", "MRP_CNTRLR", "ACT_TM",
                 "QTY_CMPL", "ACT_STRT_DT", "ACT_CMPL_DT",
-                "OPRN_DESCRIPTION"
+                "OPRN_DESCRIPTION", "P_LNG_TXT"
             }
         ),
 
@@ -24,50 +51,23 @@ let
             }
         ),
 
-    #"Renamed Specification" =
-        Table.RenameColumns(
-            #"Specification <-> Material Number ( AP SPECS )",
-            {{"SPEC", "Specification"}}
-        ),
+    // Keep every occurrence, including repeated specs. Empty lists produce no rows.
+    #"Extracted ES Specs" =
+        Table.AddColumn(#"Formatted Dates", "ES SPECS", each ExtractSpecs([P_LNG_TXT]), type list),
+
+    #"Expanded ES Specs" =
+        Table.ExpandListColumn(#"Extracted ES Specs", "ES SPECS"),
 
     #"Added Specification Pillar" =
         Table.AddColumn(
-            #"Renamed Specification",
+            #"Expanded ES Specs",
             "Specification Pillar",
             each
                 let
-                    Parts = Text.Split([Specification], "-")
+                    Parts = Text.Split([ES SPECS], "-")
                 in
-                    if List.Count(Parts) = 1 then
-                        Text.Start([Specification], 3)
-                    else
-                        Parts{0} & "-" & Text.Select(Parts{1}, {"A".."Z"}),
+                    Parts{0} & "-" & Text.Select(Parts{1}, {"A".."Z"}),
             type text
-        ),
-
-    #"Filtered Specification Pillar" =
-        Table.SelectRows(
-            #"Added Specification Pillar",
-            each [Specification Pillar] = RequiredPillar
-        ),
-
-    // Inner join is equivalent to left join then retaining only ES-T rows.
-    #"Merged Specifications" =
-        Table.NestedJoin(
-            #"Formatted Dates",
-            {"MTRL_NBR"},
-            #"Filtered Specification Pillar",
-            {"MTRL_NBR"},
-            "Specifications",
-            JoinKind.Inner
-        ),
-
-    #"Expanded Specifications" =
-        Table.ExpandTableColumn(
-            #"Merged Specifications",
-            "Specifications",
-            {"Specification", "Specification Pillar"},
-            {"Specification", "Specification Pillar"}
         )
 in
-    #"Expanded Specifications"
+    #"Added Specification Pillar"
