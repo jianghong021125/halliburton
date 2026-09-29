@@ -128,17 +128,13 @@ WHERE
             ]
         ),
 
-    // Identifiers stay as text; SQL already removes leading zeroes/spaces.
+    // SQL SUBSTRING already returns the operation/material identifiers as text.
     #"Changed Type" =
         Table.TransformColumnTypes(
             Source,
             {
                 {"PLANT", type text},
-                {"COST_CNTR", type text},
-                {"CNFRM_NBR", type text},
-                {"PROD_ORDR_NBR", type text},
-                {"OPR_NBR", type text},
-                {"MTRL_NBR", type text}
+                {"COST_CNTR", type text}
             }
         ),
 
@@ -152,14 +148,11 @@ WHERE
         Table.SelectRows(
             #"Excluded Review Operation",
             each
-                if [OPRN_DESCRIPTION] = null then
-                    false
-                else
-                    Text.Contains(
-                        [OPRN_DESCRIPTION],
-                        RequiredOperationText,
-                        Comparer.OrdinalIgnoreCase
-                    )
+                Text.Contains(
+                    [OPRN_DESCRIPTION],
+                    RequiredOperationText,
+                    Comparer.OrdinalIgnoreCase
+                ) = true
         )
 in
     #"Retained Testing Operations"

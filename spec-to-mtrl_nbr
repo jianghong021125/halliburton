@@ -29,14 +29,6 @@ WHERE B1.[latest] = 1
   AND P.PLNT_CD = '2088'
 "
             ]
-        ),
-
-    #"Changed Type" =
-        Table.TransformColumnTypes(
-            Source,
-            {
-                {"MTRL_NBR", type text}
-            }
         )
 in
-    #"Changed Type"
+    Source

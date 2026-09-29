@@ -15,20 +15,9 @@ let
             }
         ),
 
-    // Prepare the small lookup before expanding the Anchor rows.
-    // Use spec-to-mtrl_nbr for this dependency; both join keys are text.
-    #"Selected Specification Columns" =
-        Table.SelectColumns(
-            #"Specification <-> Material Number ( AP SPECS )",
-            {"MTRL_NBR", "SPEC"}
-        ),
-
-    #"Distinct Material Specifications" =
-        Table.Distinct(#"Selected Specification Columns"),
-
     #"Renamed Specification" =
         Table.RenameColumns(
-            #"Distinct Material Specifications",
+            #"Specification <-> Material Number ( AP SPECS )",
             {{"SPEC", "Specification"}}
         ),
 
@@ -38,17 +27,10 @@ let
             "Specification Pillar",
             each
                 let
-                    Parts =
-                        if [Specification] = null then
-                            {}
-                        else
-                            Text.Split([Specification], "-")
+                    Parts = Text.Split([Specification], "-")
                 in
-                    if List.Count(Parts) < 2 then
-                        null
-                    else
-                        Parts{0} & "-" & Text.Select(Parts{1}, {"A".."Z"}),
-            type nullable text
+                    Parts{0} & "-" & Text.Select(Parts{1}, {"A".."Z"}),
+            type text
         ),
 
     #"Filtered Specification Pillar" =

@@ -17,13 +17,13 @@ Update the Anchor and specification lookup first, then the combined query. If th
 - Anchor ends with two visible filter steps: exclude the exact description `SNG ICAT REVIEW PROCESS FOR TESTING ORN`, then retain descriptions containing `TEST` (case-insensitive). Null descriptions are excluded. Edit `ExcludedOperation` and `RequiredOperationText` at the top.
 - Existing completed-operation, plant 2088, and completion-date-from-2024 filters remain unchanged. ACT_TM still sums labor seconds by confirmation and divides by 3600; this is labor time, not elapsed start-to-completion time.
 - The combined query uses `Anchor Table Testing` as Source and retains ACT_TM. It adds no employee, Product Family, or weighted-time fields.
-- Specification Pillar retains the original prefix/uppercase-letter rule: `ES-T-82` and `ES-T82-REV` produce `ES-T`. Null or delimiter-free specifications produce null. Edit `RequiredPillar` at the top of the combined query to change the filter.
+- Specification Pillar retains the original prefix/uppercase-letter rule: `ES-T-82` and `ES-T82-REV` produce `ES-T`. Specifications must be non-null text with at least one hyphen; malformed values now raise an error instead of falling back to null. Edit `RequiredPillar` at the top of the combined query to change the filter.
 - Only materials with qualifying ES-T specifications survive the inner join. An operation with several distinct ES-T specifications produces several rows; ACT_TM repeats on those rows. This is not a one-row-per-confirmation output.
 - Dates stay in their source date/time types. Set display formatting in the model if needed. Identifier fields are text, avoiding numeric conversion failures; check existing relationships if your model previously used numeric identifiers.
 
 ## Performance and validation
 
-Unused SQL output expressions and the unused setup-hours aggregation were removed from Anchor. The full-table sort was removed. The specification lookup is narrowed, deduplicated, and filtered before the merge, so pillar parsing is performed on the lookup instead of the expanded fact rows. No Table.Buffer is used.
+Unused SQL output expressions and the unused setup-hours aggregation were removed from Anchor. The full-table sort was removed. The specification lookup returns only distinct material/specification pairs in SQL and is filtered before the merge, so pillar parsing is performed on the lookup instead of the expanded fact rows. Redundant M selection, deduplication, and identifier text casts were removed. SQL SUBSTRING already supplies text join keys. No Table.Buffer is used.
 
 The final Anchor filters are M steps as requested. With the existing Sql.Database native-query source, do not assume these steps or the merge fold to SQL. The source may still transfer all qualifying operations before the description filters execute. A referenced query also does not guarantee a shared cache or a single SQL execution during refresh. Measure actual refresh time with Power Query diagnostics; further SQL pushdown can be considered separately.
 
