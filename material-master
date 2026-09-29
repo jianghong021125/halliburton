@@ -2,7 +2,7 @@ let
     Source =
         Sql.Database(
             "scgreporting",
-            "powerbi",
+            "PowerBI",
             [
                 Query =
 "
@@ -18,13 +18,8 @@ SELECT
     , [Material_Type]
     , [Lab_Office]
     , [Product_Hierarch]
-    , [Drawing_Number]
-    , [Doc_Version]
-    , [Size_Dimension]
     , [Last_Change_Date]
     , [RevLev]
-    , [Net_Weight]
-    , [Weight_UOM]
     , [Basic_Material]
 
 FROM [PowerBI].[CAR01_CPS_DATA].[V_MATERIAL_MASTER_CPS_HEADER] A1
