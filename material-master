@@ -38,39 +38,7 @@ INNER JOIN
           A1.[MTRL_NBR] AS MTRL_NO
         , B1.PLNT_CD
         , B1.MRP_CNTRLR_CD
-        , [SZ_DIM_INFO]
 
-        , CASE
-            WHEN LEN([SZ_DIM_INFO]) - LEN(REPLACE([SZ_DIM_INFO], 'X', '')) <> 2
-                THEN NULL
-            ELSE TRIM('X ' FROM SUBSTRING([SZ_DIM_INFO], 1, CHARINDEX('X', [SZ_DIM_INFO])))
-          END AS OD
-
-        , CASE
-            WHEN LEN([SZ_DIM_INFO]) - LEN(REPLACE([SZ_DIM_INFO], 'X', '')) <> 2
-                THEN NULL
-            ELSE SUBSTRING(
-                    SUBSTRING([SZ_DIM_INFO], CHARINDEX('X', [SZ_DIM_INFO]) + 1, 40),
-                    1,
-                    CHARINDEX(
-                        'X',
-                        SUBSTRING([SZ_DIM_INFO], CHARINDEX('X', [SZ_DIM_INFO]) + 1, 40)
-                    ) - 1
-                )
-          END AS ID
-
-        , CASE
-            WHEN LEN([SZ_DIM_INFO]) - LEN(REPLACE([SZ_DIM_INFO], 'X', '')) <> 2
-                THEN NULL
-            ELSE SUBSTRING(
-                    SUBSTRING([SZ_DIM_INFO], CHARINDEX('X', [SZ_DIM_INFO]) + 1, 40),
-                    CHARINDEX(
-                        'X',
-                        SUBSTRING([SZ_DIM_INFO], CHARINDEX('X', [SZ_DIM_INFO]) + 1, 40)
-                    ) + 1,
-                    40
-                )
-          END AS [LEN]
 
     FROM [PowerBI].[DUN02_HESDATAMART01].[V_MTRL] A1
 
