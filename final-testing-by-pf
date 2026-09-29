@@ -18,11 +18,11 @@ let
             #"Merged Materials",
             "Material",
             {
-                "MRP_CNTRLR", "MTRL_DESCRPTION", "Product Hierarchy",
+                "MRP_CNTRLR", "Product Hierarchy",
                 "PH_LEVEL2_DESC", "PH_LEVEL4_DESC", "PH_LEVEL5_DESC", "PH_LEVEL6_DESC"
             },
             {
-                "Material.MRP_CNTRLR", "MTRL_DESCRPTION", "Product Hierarchy",
+                "Material.MRP_CNTRLR", "Product Hierarchy",
                 "PH_LEVEL2_DESC", "PH_LEVEL4_DESC", "PH_LEVEL5_DESC", "PH_LEVEL6_DESC"
             }
         )
