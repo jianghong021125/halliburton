@@ -14,7 +14,7 @@ let
             {
                 {"Material_NOZERO", "MTRL_NBR"},
                 {"MRP_Controller", "MRP_CNTRLR"},
-                {"Description", "MTRL_DESCRPTION"},
+                {"Description", "MTRL_DESCRIPTION"},
                 {"Product_Hierarch", "Product Hierarchy"}
             }
         ),
