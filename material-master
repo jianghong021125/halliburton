@@ -26,9 +26,6 @@ SELECT
     , [Net_Weight]
     , [Weight_UOM]
     , [Basic_Material]
-    , C1.OD
-    , C1.ID
-    , C1.LEN
 
 FROM [PowerBI].[CAR01_CPS_DATA].[V_MATERIAL_MASTER_CPS_HEADER] A1
 
