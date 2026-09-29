@@ -45,6 +45,6 @@ Existing measures referencing Specification must switch to ES SPECS. ACT_TM is c
 
 Cleanup runs in the narrow long-text query before the Anchor merge. The cleaner scans bracket/quote positions rather than accumulating every character. ES extraction searches match positions and examines at most 16 characters per candidate. No large-table buffer or deduplication is introduced.
 
-The SQL lookup restricts operations to OPR_PLNT_OID = 3 before transferring or cleaning text. It has no date restriction. More than one matching long-text record per confirmation can expand Anchor rows. Referenced queries may execute independently, so refresh speed still depends on the database, text volume, merge size, and Power BI memory.
+The SQL lookup joins dbo.PROD_ORDR.OID to dbo.PROD_ORDR_OPR.PROD_ORDR_OID and filters dbo.PROD_ORDR.PLNT_OID = 3 before transferring or cleaning text. It does not filter the operation's OPR_PLNT_OID and has no date restriction. More than one matching long-text record per confirmation can expand Anchor rows. Referenced queries may execute independently, so refresh speed still depends on the database, text volume, merge size, and Power BI memory.
 
 The three changed/new M scripts passed Microsoft's Power Query parser. Twenty independent reference-model cases passed for cleanup and extraction rules. These were not executed in the Power Query engine; refresh and sample-value validation against the actual SQL Server remain necessary.
