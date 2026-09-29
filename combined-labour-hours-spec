@@ -29,7 +29,10 @@ let
                 let
                     Parts = Text.Split([Specification], "-")
                 in
-                    Parts{0} & "-" & Text.Select(Parts{1}, {"A".."Z"}),
+                    if List.Count(Parts) = 1 then
+                        Text.Start([Specification], 3)
+                    else
+                        Parts{0} & "-" & Text.Select(Parts{1}, {"A".."Z"}),
             type text
         ),
 
