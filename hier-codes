@@ -1,0 +1,9 @@
+let
+    Source = Sql.Database("scgreporting", "powerbi"),
+    CAR01_CPS_DATA_V_XHIERARCHY_CODES = Source{[Schema="CAR01_CPS_DATA",Item="V_XHIERARCHY_CODES"]}[Data],
+    #"Filtered Rows" = Table.SelectRows(CAR01_CPS_DATA_V_XHIERARCHY_CODES, each ([PH_LEVEL1_DESC] = "COMPLETION TOOLS")),
+    #"Filtered Rows1" = Table.SelectRows(#"Filtered Rows", each not Text.Contains([PRODH_DESC], "DNU")),
+    #"Filtered Rows2" = Table.SelectRows(#"Filtered Rows1", each not Text.Contains([PH_LEVEL2_DESC], "DNU")),
+    #"Filtered Rows3" = Table.SelectRows(#"Filtered Rows2", each ([PH_LEVEL3_DESC] = "MATERIALS"))
+in
+    #"Filtered Rows3"
