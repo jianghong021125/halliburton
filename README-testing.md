@@ -19,7 +19,7 @@ Update the Anchor and specification lookup first, then the combined query. If th
 - The combined query uses `Anchor Table Testing` as Source and retains ACT_TM. It adds no employee, Product Family, or weighted-time fields.
 - Specification Pillar retains the original prefix/uppercase-letter rule for hyphenated values: `ES-T-82` and `ES-T82-REV` produce `ES-T`. Without a hyphen, it uses the first three characters: `91K01234` produces `91K`. Specifications must be non-null text. Edit `RequiredPillar` at the top of the combined query to change the filter; the current ES-T filter still excludes pillars such as 91K.
 - Only materials with qualifying ES-T specifications survive the inner join. An operation with several distinct ES-T specifications produces several rows; ACT_TM repeats on those rows. This is not a one-row-per-confirmation output.
-- Dates stay in their source date/time types. Set display formatting in the model if needed. Identifier fields are text, avoiding numeric conversion failures; check existing relationships if your model previously used numeric identifiers.
+- In Testing Hours by PF, ACT_STRT_DT and ACT_CMPL_DT are formatted as text using `M/dd/yyyy` (for example, `9/05/2026`), without timestamps. Formatting runs before specification expansion. Anchor Table Testing retains the original date/time columns for date relationships or time intelligence. Identifier fields are text; check existing relationships if your model previously used numeric identifiers.
 
 ## Performance and validation
 

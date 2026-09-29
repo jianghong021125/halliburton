@@ -15,6 +15,15 @@ let
             }
         ),
 
+    #"Formatted Dates" =
+        Table.TransformColumns(
+            #"Selected Anchor Columns",
+            {
+                {"ACT_STRT_DT", each Date.ToText(Date.From(_), [Format = "M/dd/yyyy", Culture = "en-US"]), type text},
+                {"ACT_CMPL_DT", each Date.ToText(Date.From(_), [Format = "M/dd/yyyy", Culture = "en-US"]), type text}
+            }
+        ),
+
     #"Renamed Specification" =
         Table.RenameColumns(
             #"Specification <-> Material Number ( AP SPECS )",
@@ -45,7 +54,7 @@ let
     // Inner join is equivalent to left join then retaining only ES-T rows.
     #"Merged Specifications" =
         Table.NestedJoin(
-            #"Selected Anchor Columns",
+            #"Formatted Dates",
             {"MTRL_NBR"},
             #"Filtered Specification Pillar",
             {"MTRL_NBR"},
