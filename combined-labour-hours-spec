@@ -69,9 +69,12 @@ let
     #"Expanded ES Specs" =
         Table.ExpandListColumn(#"Extracted ES Specs", "ES SPECS"),
 
+    #"Removed Null ES Specs" =
+        Table.SelectRows(#"Expanded ES Specs", each [ES SPECS] <> null),
+
     #"Added Specification Pillar" =
         Table.AddColumn(
-            #"Expanded ES Specs",
+            #"Removed Null ES Specs",
             "Specification Pillar",
             each
                 let
