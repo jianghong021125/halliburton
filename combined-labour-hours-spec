@@ -4,7 +4,7 @@ let
     SpecDelimiters = {
         ",", ";", ":", ".", "/", Character.FromNumber(92), "|",
         "(", ")", "[", "]", "{", "}", "<", ">",
-        Character.FromNumber(34), "'", "!", "?", "=", "+", "&",
+        Character.FromNumber(34), "'", "!", "?", "=", "+", "&", "*",
         "#(cr)", "#(lf)", "#(tab)"
     },
 
@@ -21,9 +21,20 @@ let
                         Length = List.Min({3 + CharactersAfterPrefix, Boundaries{index + 1} - Start}),
                         Fragment = Text.Range(value, Start, Length),
                         Stop = Text.PositionOfAny(Fragment, SpecDelimiters),
-                        Token = if Stop < 0 then Fragment else Text.Start(Fragment, Stop)
+                        Token = if Stop < 0 then Fragment else Text.Start(Fragment, Stop),
+                        // Join across spaces only when the current word ends in "-".
+                        Parsed = List.Accumulate(
+                            Text.ToList(Token),
+                            [Word = "", Stopped = false],
+                            (state, char) =>
+                                if state[Stopped] then state
+                                else if char = " " then
+                                    [Word = state[Word], Stopped = not Text.EndsWith(state[Word], "-")]
+                                else
+                                    [Word = state[Word] & char, Stopped = false]
+                        )
                     in
-                        Text.Remove(Token, {" "})
+                        Parsed[Word]
             )
         in
             List.Select(Specs, each Text.Length(_) > 3),

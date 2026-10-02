@@ -25,8 +25,8 @@ Anchor left-joins this lookup by CNFRM_NBR and expands LNG_TXT and P_LNG_TXT onl
 - Null long text produces null processed text.
 - ES matching is case-sensitive: each literal ES- begins a candidate.
 - A candidate contains ES- plus up to 13 following characters, including spaces in that limit. It stops earlier at the next ES- or a character in SpecDelimiters at the top of the combined script.
-- SpecDelimiters includes commas, semicolons, colons, periods, slashes, backslashes, pipes, brackets, quotes, exclamation/question marks, equals, plus, ampersand, tabs, and line breaks. Ordinary spaces and hyphens are allowed.
-- Spaces are removed after extraction. No further validation of the code format is performed; following prose without a delimiter can be included up to the length limit.
+- SpecDelimiters includes commas, semicolons, colons, periods, slashes, backslashes, pipes, brackets, quotes, exclamation/question marks, equals, plus, ampersand, asterisks, tabs, and line breaks. Hyphens remain part of a specification.
+- A space ends the specification unless the word collected so far ends with a hyphen. Spaces following a hyphen are skipped and the next word is joined: ES-T- 82 becomes ES-T-82, but ES-T-82 TEST stops at ES-T-82. Repeated spaces after a hyphen are allowed. Spaces still count toward the 13-character limit before joining. No further code-format validation is performed.
 - Each occurrence becomes a separate ES SPECS row. Repeated codes remain repeated. Null text, no matches, or a bare ES- produce no output rows.
 - Specification Pillar uses the existing rule: prefix before the first hyphen plus the uppercase letters in the next segment. ES-T-82 and ES-T82-REV produce ES-T.
 - There is no ES-T-only filter in the combined query now. All extracted pillars remain.
@@ -36,7 +36,10 @@ Anchor left-joins this lookup by CNFRM_NBR and expands LNG_TXT and P_LNG_TXT onl
 | (ES-T-99) ES-T-82 | ES-T-82 |
 | "obsolete ES-T-99 text" ES-T-82 | ES-T-82 |
 | 5" DIA; ES-T-82 | ES-T-82 |
-| ES-T - 82,ES-P-12 | ES-T-82; ES-P-12 (two rows) |
+| ES-T- 82,ES-P-12 | ES-T-82; ES-P-12 (two rows) |
+| ES-T-82 TEST | ES-T-82 |
+| ES-T - 82 | ES-T |
+| ES-T-82*ES-P-12 | ES-T-82; ES-P-12 (two rows) |
 | ES-12345678901234567 | ES-1234567890123 |
 
 ## Model and performance
