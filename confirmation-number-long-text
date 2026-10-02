@@ -73,19 +73,21 @@ let
             [
                 Query = "
 SELECT
-    OPR.[OID],
+    LNG.[LNG_TXT],
     SUBSTRING(
         OPR.[CNFRM_NBR],
         PATINDEX('%[^0 ]%', OPR.[CNFRM_NBR] + ' '),
         LEN(OPR.[CNFRM_NBR])
-    ) AS [CNFRM_NBR],
-    LNG.[LNG_TXT]
+    ) AS [CNFRM_NBR]
 FROM [dbo].[PROD_ORDR_OPR] OPR
 INNER JOIN [dbo].[PROD_ORDR] ORD
     ON ORD.[OID] = OPR.[PROD_ORDR_OID]
 INNER JOIN [dbo].[PROD_ORDR_OPR_LNG] LNG
-    ON OPR.[OID] = LNG.[OID]
-WHERE ORD.[PLNT_OID] = 3
+    ON LNG.[PROD_ORDR_OPR_OID] = OPR.[OID]
+INNER JOIN [dbo].[WRK_CNTR] WRK
+    ON WRK.[OID] = OPR.[WRK_CNTR_OID]
+WHERE LNG.[LNG_TXT] IS NOT NULL
+  AND ORD.[PLNT_OID] = 3
 "
             ]
         ),

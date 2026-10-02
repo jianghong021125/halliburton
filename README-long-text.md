@@ -14,7 +14,7 @@ Paste the scripts into Power BI Advanced Editor in this order:
 
 Use the exact existing query name if your PBIX spells "by" differently. Other scripts have not changed.
 
-The new lookup connects to SCGReporting / AP101_MPM and joins dbo.PROD_ORDR_OPR to dbo.PROD_ORDR_OPR_LNG on OID, as requested. One OID column is returned because both joined OIDs are equal, along with CNFRM_NBR, LNG_TXT, and P_LNG_TXT. Confirmation numbers use the same leading-zero/space removal as Anchor and remain text.
+The lookup connects to SCGReporting / AP101_MPM. It inner-joins dbo.PROD_ORDR_OPR to dbo.PROD_ORDR on PROD_ORDR.OID = PROD_ORDR_OPR.PROD_ORDR_OID, to dbo.PROD_ORDR_OPR_LNG on PROD_ORDR_OPR_LNG.PROD_ORDR_OPR_OID = PROD_ORDR_OPR.OID, and to dbo.WRK_CNTR on WRK_CNTR.OID = PROD_ORDR_OPR.WRK_CNTR_OID. It returns LNG_TXT and CNFRM_NBR, then adds P_LNG_TXT; OID is no longer an output column. Confirmation numbers use the same leading-zero/space removal as Anchor and remain text.
 
 Anchor left-joins this lookup by CNFRM_NBR and expands LNG_TXT and P_LNG_TXT only. OID is not expanded. The description exclusion and TEST requirement are removed; existing plant, status, and completion-date SQL filters remain.
 
@@ -45,6 +45,6 @@ Existing measures referencing Specification must switch to ES SPECS. ACT_TM is c
 
 Cleanup runs in the narrow long-text query before the Anchor merge. The cleaner scans bracket/quote positions rather than accumulating every character. ES extraction searches match positions and examines at most 16 characters per candidate. No large-table buffer or deduplication is introduced.
 
-The SQL lookup joins dbo.PROD_ORDR.OID to dbo.PROD_ORDR_OPR.PROD_ORDR_OID and filters dbo.PROD_ORDR.PLNT_OID = 3 before transferring or cleaning text. It does not filter the operation's OPR_PLNT_OID and has no date restriction. More than one matching long-text record per confirmation can expand Anchor rows. Referenced queries may execute independently, so refresh speed still depends on the database, text volume, merge size, and Power BI memory.
+The SQL lookup filters LNG_TXT IS NOT NULL and dbo.PROD_ORDR.PLNT_OID = 3 before transferring or cleaning text. The inner work-center join also requires a matching WRK_CNTR record. It does not filter the operation's OPR_PLNT_OID and has no date restriction. More than one matching long-text record per confirmation can expand Anchor rows. Referenced queries may execute independently, so refresh speed still depends on the database, text volume, merge size, and Power BI memory.
 
 The three changed/new M scripts passed Microsoft's Power Query parser. Twenty independent reference-model cases passed for cleanup and extraction rules. These were not executed in the Power Query engine; refresh and sample-value validation against the actual SQL Server remain necessary.
