@@ -1,95 +1,87 @@
 let
-    Source = #"Anchor Table",
+    // Power BI query name: Testing Hours By PF.
+    CharactersAfterPrefix = 13,
+    SpecDelimiters = {
+        ",", ";", ":", ".", "/", Character.FromNumber(92), "|",
+        "(", ")", "[", "]", "{", "}", "<", ">",
+        Character.FromNumber(34), "'", "!", "?", "=", "+", "&", "*",
+        "#(cr)", "#(lf)", "#(tab)"
+    },
 
-    #"Removed Other Columns" =
+    ExtractSpecs = (value as nullable text) as list =>
+        if value = null then {} else
+        let
+            Starts = List.Buffer(Text.PositionOf(value, "ES-", Occurrence.All)),
+            Boundaries = Starts & {Text.Length(value)},
+            Specs = List.Transform(
+                List.Positions(Starts),
+                (index) =>
+                    let
+                        Start = Starts{index},
+                        Length = List.Min({3 + CharactersAfterPrefix, Boundaries{index + 1} - Start}),
+                        Fragment = Text.Range(value, Start, Length),
+                        Stop = Text.PositionOfAny(Fragment, SpecDelimiters),
+                        Token = if Stop < 0 then Fragment else Text.Start(Fragment, Stop),
+                        // Join across spaces only when the current word ends in "-".
+                        Parsed = List.Accumulate(
+                            Text.ToList(Token),
+                            [Word = "", Stopped = false],
+                            (state, char) =>
+                                if state[Stopped] then state
+                                else if char = " " then
+                                    [Word = state[Word], Stopped = not Text.EndsWith(state[Word], "-")]
+                                else
+                                    [Word = state[Word] & char, Stopped = false]
+                        )
+                    in
+                        Parsed[Word]
+            )
+        in
+            List.Select(Specs, each Text.Length(_) > 3),
+
+    Source = #"Anchor Table Testing",
+
+    #"Selected Anchor Columns" =
         Table.SelectColumns(
             Source,
             {
-                "PLANT",
-                "BU_NAME",
-                "WRK_CNTR",
-                "CNFRM_NBR",
-                "PROD_ORDR_NBR",
-                "OPR_NBR",
-                "MTRL_NBR",
-                "MTRL_DESCRIPTION",
-                "MRP_CNTRLR",
-                "ACT_TM",
-                "QTY_CMPL",
-                "ACT_STRT_DT",
-                "ACT_CMPL_DT",
-                "OPRN_DESCRIPTION"
+                "PLANT", "CMPL_YEAR_MO", "BU_NAME", "WRK_CNTR", "CNFRM_NBR",
+                "PROD_ORDR_NBR", "OPR_NBR", "MTRL_NBR",
+                "MTRL_DESCRIPTION", "MRP_CNTRLR", "ACT_TM",
+                "QTY_CMPL", "ACT_STRT_DT", "ACT_CMPL_DT",
+                "OPRN_DESCRIPTION", "P_LNG_TXT"
             }
         ),
 
-    #"Merged Queries" =
-        Table.NestedJoin(
-            #"Removed Other Columns",
-            {"CNFRM_NBR"},
-            #"Employee -> Confirmation Number",
-            {"CNFRM_NBR"},
-            "Employee -> Confirmation Number",
-            JoinKind.LeftOuter
-        ),
-
-    #"Expanded Employee -> Confirmation Number" =
-        Table.ExpandTableColumn(
-            #"Merged Queries",
-            "Employee -> Confirmation Number",
-            {"EMPL_NBR", "EMPL_NAME"},
+    #"Formatted Dates" =
+        Table.TransformColumns(
+            #"Selected Anchor Columns",
             {
-                "Employee -> Confirmation Number.EMPL_NBR",
-                "Employee -> Confirmation Number.EMPL_NAME"
+                {"ACT_STRT_DT", each Date.ToText(Date.From(_), [Format = "M/dd/yyyy", Culture = "en-US"]), type text},
+                {"ACT_CMPL_DT", each Date.ToText(Date.From(_), [Format = "M/dd/yyyy", Culture = "en-US"]), type text}
             }
         ),
 
-    #"Merged Queries1" =
-        Table.NestedJoin(
-            #"Expanded Employee -> Confirmation Number",
-            {"MTRL_NBR"},
-            #"Specification <-> Material Number ( AP SPECS )",
-            {"MTRL_NBR"},
-            "Specification <-> Material Number ( AP101_MPM )",
-            JoinKind.LeftOuter
-        ),
+    // Keep every occurrence, including repeated specs. Empty lists produce no rows.
+    #"Extracted ES Specs" =
+        Table.AddColumn(#"Formatted Dates", "ES SPECS", each ExtractSpecs([P_LNG_TXT]), type list),
 
-    #"Expanded Specification <-> Material Number ( AP101_MPM )1" =
-        Table.ExpandTableColumn(
-            #"Merged Queries1",
-            "Specification <-> Material Number ( AP101_MPM )",
-            {"SPEC"},
-            {"Specification <-> Material Number ( AP101_MPM ).SPEC"}
-        ),
+    #"Expanded ES Specs" =
+        Table.ExpandListColumn(#"Extracted ES Specs", "ES SPECS"),
 
-    #"Renamed Columns" =
-        Table.RenameColumns(
-            #"Expanded Specification <-> Material Number ( AP101_MPM )1",
-            {
-                {"Employee -> Confirmation Number.EMPL_NBR", "Employee Number"},
-                {"Employee -> Confirmation Number.EMPL_NAME", "Employee Name"},
-                {"Specification <-> Material Number ( AP101_MPM ).SPEC", "Specification"}
-            }
-        ),
+    #"Removed Null ES Specs" =
+        Table.SelectRows(#"Expanded ES Specs", each [ES SPECS] <> null),
 
-    #"Added Custom" =
+    #"Added Specification Pillar" =
         Table.AddColumn(
-            #"Renamed Columns",
+            #"Removed Null ES Specs",
             "Specification Pillar",
             each
-                if [Specification] = null then
-                    null
-                else
-                    Text.BeforeDelimiter([Specification], "-")
-                    & "-"
-                    &
-                    Text.Select(
-                        Text.BeforeDelimiter(
-                            Text.AfterDelimiter([Specification], "-"),
-                            "-"
-                        ),
-                        {"A".."Z"}
-                    ),
+                let
+                    Parts = Text.Split([ES SPECS], "-")
+                in
+                    Parts{0} & "-" & Text.Select(Parts{1}, {"A".."Z"}),
             type text
         )
 in
-    #"Added Custom"
+    #"Added Specification Pillar"

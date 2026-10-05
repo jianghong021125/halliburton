@@ -1,0 +1,30 @@
+let
+    // Power BI query name: Final Testing By PF (last 3 years).
+    // Inherits the date range from Testing Hours By PF.
+    Source = #"Testing Hours By PF",
+
+    #"Merged Materials" =
+        Table.NestedJoin(
+            Source,
+            {"MTRL_NBR"},
+            #"Material w/ PH",
+            {"MTRL_NBR"},
+            "Material",
+            JoinKind.LeftOuter
+        ),
+
+    #"Expanded Materials" =
+        Table.ExpandTableColumn(
+            #"Merged Materials",
+            "Material",
+            {
+                "MRP_CNTRLR", "Product Hierarchy",
+                "PH_LEVEL2_DESC", "PH_LEVEL4_DESC", "PH_LEVEL5_DESC", "PH_LEVEL6_DESC"
+            },
+            {
+                "Material.MRP_CNTRLR", "Product Hierarchy",
+                "PH_LEVEL2_DESC", "PH_LEVEL4_DESC", "PH_LEVEL5_DESC", "PH_LEVEL6_DESC"
+            }
+        )
+in
+    #"Expanded Materials"

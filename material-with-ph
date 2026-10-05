@@ -1,0 +1,62 @@
+let
+    // Power BI query name: Material w/ PH.
+    Source = #"Material Master",
+
+    #"Selected Material Columns" =
+        Table.SelectColumns(
+            Source,
+            {"Material_NOZERO", "MRP_Controller", "Description", "Product_Hierarch"}
+        ),
+
+    #"Renamed Material Columns" =
+        Table.RenameColumns(
+            #"Selected Material Columns",
+            {
+                {"Material_NOZERO", "MTRL_NBR"},
+                {"MRP_Controller", "MRP_CNTRLR"},
+                {"Description", "MTRL_DESCRIPTION"},
+                {"Product_Hierarch", "Product Hierarchy"}
+            }
+        ),
+
+    #"Typed Material Keys" =
+        Table.TransformColumnTypes(
+            #"Renamed Material Columns",
+            {{"MTRL_NBR", type text}, {"Product Hierarchy", type text}}
+        ),
+
+    #"Selected Hierarchy Columns" =
+        Table.SelectColumns(
+            #"Product Hierarchies",
+            {
+                "PRODH_PROD_HIER",
+                "PH_LEVEL2_DESC", "PH_LEVEL4_DESC",
+                "PH_LEVEL5_DESC", "PH_LEVEL6_DESC"
+            }
+        ),
+
+    #"Typed Hierarchy Key" =
+        Table.TransformColumnTypes(
+            #"Selected Hierarchy Columns",
+            {{"PRODH_PROD_HIER", type text}}
+        ),
+
+    #"Merged Hierarchies" =
+        Table.NestedJoin(
+            #"Typed Material Keys",
+            {"Product Hierarchy"},
+            #"Typed Hierarchy Key",
+            {"PRODH_PROD_HIER"},
+            "Hierarchy",
+            JoinKind.LeftOuter
+        ),
+
+    #"Expanded Hierarchies" =
+        Table.ExpandTableColumn(
+            #"Merged Hierarchies",
+            "Hierarchy",
+            {"PH_LEVEL2_DESC", "PH_LEVEL4_DESC", "PH_LEVEL5_DESC", "PH_LEVEL6_DESC"},
+            {"PH_LEVEL2_DESC", "PH_LEVEL4_DESC", "PH_LEVEL5_DESC", "PH_LEVEL6_DESC"}
+        )
+in
+    #"Expanded Hierarchies"

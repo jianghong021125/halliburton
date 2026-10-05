@@ -1,0 +1,36 @@
+let
+    Source =
+        Sql.Database(
+            "scgreporting",
+            "PowerBI",
+            [
+                Query =
+"
+SELECT
+      A1.[Material]
+    , A1.[Material_NOZERO]
+    , B1.Plant
+    , B1.MRP_Controller
+    , B1.Plant_Matl_Status
+    , [Old_Material]
+    , [Description]
+    , [Material_Group]
+    , [Material_Type]
+    , [Lab_Office]
+    , [Product_Hierarch]
+    , [Last_Change_Date]
+    , [RevLev]
+    , [Basic_Material]
+
+FROM [PowerBI].[CAR01_CPS_DATA].[V_MATERIAL_MASTER_CPS_HEADER] A1
+
+INNER JOIN [PowerBI].[CAR01_CPS_DATA].[V_MATERIAL_MASTER_CPS_PLANT] B1
+    ON A1.Material = B1.Material
+
+WHERE Plant = '2088'
+
+"
+            ]
+        )
+in
+    Source

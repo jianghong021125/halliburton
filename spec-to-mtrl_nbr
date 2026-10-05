@@ -1,0 +1,34 @@
+let
+    // Power BI query name: Specification <-> Material Number ( AP SPECS ).
+    Source =
+        Sql.Database(
+            "SCGReporting",
+            "PowerBI",
+            [
+                Query = "
+SELECT DISTINCT
+    B1.[Name] AS SPEC,
+    SUBSTRING(
+        M.MTRL_NBR,
+        PATINDEX('%[^0 ]%', M.MTRL_NBR + ' '),
+        LEN(M.MTRL_NBR)
+    ) AS MTRL_NBR
+FROM [DUN02_HESDATAMART01].[EnoviaData].[Documents] B1
+INNER JOIN AP101_MPM.dbo.PROD_ORDR_BOM_DTL DTL
+    ON B1.[Name] = DTL.DOC_NBR
+INNER JOIN AP101_MPM.dbo.PROD_ORDR_BOM BOM
+    ON DTL.PROD_ORDR_BOM_OID = BOM.OID
+INNER JOIN AP101_MPM.dbo.PROD_ORDR PO
+    ON BOM.PROD_ORDR_OID = PO.OID
+INNER JOIN AP101_MPM.dbo.MTRL M
+    ON PO.MTRL_OID = M.OID
+INNER JOIN AP101_MPM.dbo.PLNT P
+    ON PO.PLNT_OID = P.OID
+WHERE B1.[latest] = 1
+  AND B1.[current] = 'Production Release'
+  AND P.PLNT_CD = '2088'
+"
+            ]
+        )
+in
+    Source
