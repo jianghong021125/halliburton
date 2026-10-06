@@ -1,35 +1,21 @@
 # Material and testing hierarchy queries
 
-Paste each complete script into a separate Blank Query's Advanced Editor, enable load for tables needed in the model, and use these exact query names:
-
-| Script | Power BI query name |
-| --- | --- |
-| material-master | Material Master |
-| hier-codes | Product Hierarchies |
-| material-with-ph | Material w/ PH |
-| combined-labour-hours-spec | Testing Hours By PF |
-| final-testing-by-pf | Final Testing By PF (last 3 years) |
-
-The final script references Testing Hours By PF with uppercase By, as requested. If your existing query is named Testing Hours by PF, rename it or adjust the final script's Source reference to match exactly.
+Use the installation order and exact query names in [README-testing.md](README-testing.md).
 
 ## Material w/ PH
 
-The material table is the left side of a left outer join to Product Hierarchies, on Product_Hierarch = PRODH_PROD_HIER. All materials remain; unmatched hierarchy descriptions are null. Only the four requested material fields and four hierarchy descriptions are returned. MTRL_DESCRPTION follows the requested spelling exactly.
+`material-master` supplies `Material Master`; `hier-codes` supplies `Product Hierarchies`. `material-with-ph` selects four material fields and left-joins product hierarchy on `Product_Hierarch = PRODH_PROD_HIER`, expanding descriptions for levels 2, 4, 5, and 6.
 
-The lookup key PRODH_PROD_HIER must be unique. Having 2,048 hierarchy rows alone does not establish uniqueness. Material and hierarchy keys are explicitly typed as text to match the text MTRL_NBR in Testing Hours By PF and preserve hierarchy codes. No padding, trimming, or other key normalization is performed.
+The output material fields are `MTRL_NBR`, `MRP_CNTRLR`, `MTRL_DESCRIPTION`, and `Product Hierarchy`. All materials remain; unmatched hierarchy descriptions are null. Material and hierarchy join keys are text, with no additional padding or trimming.
 
-## Final Testing By PF (last 3 years)
+`PRODH_PROD_HIER` must be unique to avoid multiplying materials. The number of hierarchy rows alone does not establish uniqueness.
 
-All Testing Hours By PF columns are retained, with material and hierarchy attributes added through a left outer join on MTRL_NBR. The material join key is not expanded a second time.
+## Final Testing By PF (Since 2024)
 
-Testing Hours By PF already has MRP_CNTRLR, so the added controller is named Material.MRP_CNTRLR. The existing MTRL_DESCRIPTION and the newly requested MTRL_DESCRPTION are both retained, allowing their different sources to be compared.
+The final query sources `Anchor Table Testing` directly and left-joins `Material w/ PH` on `MTRL_NBR` before joining the specification lookup. It expands only `Material.MRP_CNTRLR`, `Product Hierarchy`, and the four hierarchy descriptions. The added controller is aliased because Anchor already supplies `MRP_CNTRLR`; the original Anchor material description is retained without expanding a second description.
 
-Material w/ PH must have at most one row per MTRL_NBR to preserve the testing row count. A unique hierarchy code does not guarantee unique material numbers in Material Master. Multiple material matches expand testing rows and repeat ACT_TM; resolve conflicting material records at source rather than arbitrarily discarding duplicates.
+`Material w/ PH` must have at most one row per `MTRL_NBR` to preserve the Anchor row count at the material merge. Multiple material matches multiply rows and repeat ACT_TM. Check keys in the actual data and resolve conflicting source records rather than arbitrarily dropping duplicates.
 
-The final table inherits its date range from Testing Hours By PF. The current Anchor filters ACT_CMPL_DT >= 2024-01-01; no new rolling-three-year filter is added. The requested table name does not automatically update that cutoff as time passes.
+The later specification join can legitimately expand rows further. Compare the material-merge row count with Anchor separately from the final specification-expanded count. Unmatched materials remain with null attributes; only unmatched specification/pillar values are replaced with empty text.
 
-## Performance and validation
-
-Material and hierarchy columns are selected before joining. No Table.Buffer or blanket deduplication is added. The scripts reference existing queries, so those dependencies may run again when the final table refreshes. These merges can still be expensive; no refresh-time guarantee is implied.
-
-Both new scripts passed Microsoft's Power Query syntax parser. Database execution and full refresh require validation in your PBIX: check key uniqueness, unmatched materials/hierarchies, and the final row count against Testing Hours By PF.
+No material-source or hierarchy filtering rules have changed. The final table inherits Anchor's fixed completion-date cutoff of 2024-01-01 and operation OPR_PLNT_OID = 3. Native date/time values remain in Anchor; the final table retains the existing date-as-text display format.

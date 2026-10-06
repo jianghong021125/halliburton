@@ -1,13 +1,43 @@
 let
     // Power BI query name: Final Testing By PF (Since 2024).
-    // Inherits the date range from Testing Hours.
-    Source = #"Testing Hours",
+    // Inherits the operation scope and date range from Anchor Table Testing.
+    Source = #"Anchor Table Testing",
 
+    #"Selected Anchor Columns" =
+        Table.SelectColumns(
+            Source,
+            {
+                "PLANT", "CMPL_YEAR_MO", "BU_NAME", "WRK_CNTR", "CNFRM_NBR",
+                "PROD_ORDR_NBR", "OPR_NBR", "MTRL_NBR",
+                "MTRL_DESCRIPTION", "MRP_CNTRLR", "ACT_TM",
+                "QTY_CMPL", "ACT_STRT_DT", "ACT_CMPL_DT", "OPRN_DESCRIPTION"
+            }
+        ),
+
+    #"Formatted Dates" =
+        Table.TransformColumns(
+            #"Selected Anchor Columns",
+            {
+                {"ACT_STRT_DT", each Date.ToText(Date.From(_), [Format = "M/dd/yyyy", Culture = "en-US"]), type text},
+                {"ACT_CMPL_DT", each Date.ToText(Date.From(_), [Format = "M/dd/yyyy", Culture = "en-US"]), type text}
+            }
+        ),
+
+    #"Selected Material Columns" =
+        Table.SelectColumns(
+            #"Material w/ PH",
+            {
+                "MTRL_NBR", "MRP_CNTRLR", "Product Hierarchy",
+                "PH_LEVEL2_DESC", "PH_LEVEL4_DESC", "PH_LEVEL5_DESC", "PH_LEVEL6_DESC"
+            }
+        ),
+
+    // Merge materials before specifications multiply the operation rows.
     #"Merged Materials" =
         Table.NestedJoin(
-            Source,
+            #"Formatted Dates",
             {"MTRL_NBR"},
-            #"Material w/ PH",
+            #"Selected Material Columns",
             {"MTRL_NBR"},
             "Material",
             JoinKind.LeftOuter
@@ -25,6 +55,54 @@ let
                 "Material.MRP_CNTRLR", "Product Hierarchy",
                 "PH_LEVEL2_DESC", "PH_LEVEL4_DESC", "PH_LEVEL5_DESC", "PH_LEVEL6_DESC"
             }
+        ),
+
+    #"Selected Specification Columns" =
+        Table.SelectColumns(
+            #"Confirmation Number <-> LNG_TXT",
+            {"CNFRM_NBR", "LNG_TXT", "DOC_NBR"}
+        ),
+
+    #"Added Specification Pillar" =
+        Table.AddColumn(
+            #"Selected Specification Columns",
+            "Specification Pillar",
+            each
+                if Text.StartsWith([DOC_NBR], "ES-") then
+                    let
+                        Parts = Text.Split([DOC_NBR], "-")
+                    in
+                        Parts{0} & "-" & Text.Select(Parts{1}, {"A".."Z"})
+                else
+                    [DOC_NBR],
+            type text
+        ),
+
+    #"Merged Specifications" =
+        Table.NestedJoin(
+            #"Expanded Materials",
+            {"CNFRM_NBR"},
+            #"Added Specification Pillar",
+            {"CNFRM_NBR"},
+            "Specifications",
+            JoinKind.LeftOuter
+        ),
+
+    #"Expanded Specifications" =
+        Table.ExpandTableColumn(
+            #"Merged Specifications",
+            "Specifications",
+            {"LNG_TXT", "DOC_NBR", "Specification Pillar"},
+            {"LNG_TXT", "Specification", "Specification Pillar"}
+        ),
+
+    #"Blank Unmatched Specifications" =
+        Table.ReplaceValue(
+            #"Expanded Specifications",
+            null,
+            "",
+            Replacer.ReplaceValue,
+            {"Specification", "Specification Pillar"}
         )
 in
-    #"Expanded Materials"
+    #"Blank Unmatched Specifications"

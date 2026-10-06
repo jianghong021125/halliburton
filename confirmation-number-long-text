@@ -1,98 +1,81 @@
 let
     // Power BI query name: Confirmation Number <-> LNG_TXT.
-    // Remove closed (), [], {} sections first, then paired non-numeric quotes.
-    // Unmatched delimiters remain. Quotes touching a digit on either side remain.
-    OpenBrackets = {"(", "[", "{"},
-    CloseBrackets = {")", "]", "}"},
-    Quote = Character.FromNumber(34),
-    Digits = {"0".."9"},
-
-    RemoveRanges = (value as text, ranges as list) as text =>
-        let
-            Sorted = List.Sort(ranges, (a, b) => Value.Compare(a[Start], b[Start])),
-            Kept = List.Accumulate(
-                Sorted,
-                [End = 0, Parts = {}],
-                (state, span) =>
-                    if span[End] <= state[End] then
-                        state
-                    else
-                        [
-                            End = span[End],
-                            Parts = state[Parts] & {
-                                Text.Range(value, state[End], List.Max({0, span[Start] - state[End]}))
-                            }
-                        ]
-            )
-        in
-            Text.Combine(Kept[Parts]) & Text.Range(value, Kept[End]),
-
-    CleanLongText = (value as nullable text) as nullable text =>
-        if value = null then null else
-        let
-            BracketPositions = Text.PositionOfAny(value, OpenBrackets & CloseBrackets, Occurrence.All),
-            Brackets = List.Accumulate(
-                BracketPositions,
-                [Stack = {}, Ranges = {}],
-                (state, position) =>
-                    let
-                        Char = Text.At(value, position),
-                        Opening = List.PositionOf(OpenBrackets, Char),
-                        Top = List.Last(state[Stack], null)
-                    in
-                        if Opening >= 0 then
-                            [
-                                Stack = state[Stack] & {[Start = position, Close = CloseBrackets{Opening}]},
-                                Ranges = state[Ranges]
-                            ]
-                        else if Top = null then state
-                        else if Char <> Top[Close] then state
-                        else
-                            [
-                                Stack = List.RemoveLastN(state[Stack], 1),
-                                Ranges = state[Ranges] & {[Start = Top[Start], End = position + 1]}
-                            ]
-            ),
-            WithoutBrackets = RemoveRanges(value, Brackets[Ranges]),
-            Padded = " " & WithoutBrackets & " ",
-            QuotePositions = List.Select(
-                Text.PositionOf(WithoutBrackets, Quote, Occurrence.All),
-                (position) =>
-                    not List.Contains(Digits, Text.At(Padded, position))
-                    and not List.Contains(Digits, Text.At(Padded, position + 2))
-            ),
-            QuotePairs = List.Select(List.Split(QuotePositions, 2), each List.Count(_) = 2),
-            QuoteRanges = List.Transform(QuotePairs, each [Start = _{0}, End = _{1} + 1])
-        in
-            RemoveRanges(WithoutBrackets, QuoteRanges),
-
+    // Keep the native SQL identical to cnfrm-to-spec-query.
     Source =
         Sql.Database(
             "SCGReporting",
             "AP101_MPM",
             [
                 Query = "
+WITH EligibleOperations AS
+(
+    SELECT
+          P.PROD_ORDR_NBR
+        , O.CNFRM_NBR
+        , W.WRK_CNTR_CD
+        , L.LNG_TXT
+    FROM AP101_MPM.dbo.PROD_ORDR_OPR O
+    INNER JOIN AP101_MPM.dbo.PROD_ORDR P
+        ON P.OID = O.PROD_ORDR_OID
+    INNER JOIN AP101_MPM.dbo.PROD_ORDR_OPR_LNG L
+        ON L.PROD_ORDR_OPR_OID = O.OID
+    INNER JOIN AP101_MPM.dbo.WRK_CNTR W
+        ON W.OID = O.WRK_CNTR_OID
+    INNER JOIN AP101_MPM.dbo.PLNT G
+        ON G.OID = O.OPR_PLNT_OID
+    WHERE P.PLNT_OID = 3
+      AND O.OPR_PLNT_OID = 3
+      AND G.PLNT_CD = '2088'
+      AND O.MPM_ORDR_OPR_STAT_CD = 'C'
+      AND O.ACT_CMPL_DT >= '2024-01-01'
+      AND L.LNG_TXT IS NOT NULL
+),
+BOM_CTE AS
+(
+    SELECT
+          ordr.PROD_ORDR_NBR
+        , ordr_bom_dtl.DOC_NBR
+        , ordr_bom_dtl.VLD_FRM_DT
+        , ROW_NUMBER() OVER (
+            PARTITION BY ordr.PROD_ORDR_NBR, ordr_bom_dtl.DOC_NBR
+            ORDER BY ordr_bom_dtl.VLD_FRM_DT DESC
+        ) AS RN
+    FROM AP101_MPM.dbo.PROD_ORDR AS ordr
+    INNER JOIN AP101_MPM.dbo.PROD_ORDR_BOM AS ordr_bom
+        ON ordr.OID = ordr_bom.PROD_ORDR_OID
+    INNER JOIN AP101_MPM.dbo.PROD_ORDR_BOM_DTL AS ordr_bom_dtl
+        ON ordr_bom.OID = ordr_bom_dtl.PROD_ORDR_BOM_OID
+    WHERE ordr_bom_dtl.CMPNT_MTRL_OID IS NULL
+      AND NULLIF(LTRIM(RTRIM(ordr_bom_dtl.DOC_NBR)), '') IS NOT NULL
+      AND EXISTS (
+          SELECT 1
+          FROM EligibleOperations E
+          WHERE E.PROD_ORDR_NBR = ordr.PROD_ORDR_NBR
+      )
+),
+LatestBOM AS
+(
+    SELECT PROD_ORDR_NBR, DOC_NBR, VLD_FRM_DT
+    FROM BOM_CTE
+    WHERE RN = 1
+)
 SELECT
-    LNG.[LNG_TXT],
-    SUBSTRING(
-        OPR.[CNFRM_NBR],
-        PATINDEX('%[^0 ]%', OPR.[CNFRM_NBR] + ' '),
-        LEN(OPR.[CNFRM_NBR])
-    ) AS [CNFRM_NBR]
-FROM [dbo].[PROD_ORDR_OPR] OPR
-INNER JOIN [dbo].[PROD_ORDR] ORD
-    ON ORD.[OID] = OPR.[PROD_ORDR_OID]
-INNER JOIN [dbo].[PROD_ORDR_OPR_LNG] LNG
-    ON LNG.[PROD_ORDR_OPR_OID] = OPR.[OID]
-INNER JOIN [dbo].[WRK_CNTR] WRK
-    ON WRK.[OID] = OPR.[WRK_CNTR_OID]
-WHERE LNG.[LNG_TXT] IS NOT NULL
-  AND ORD.[PLNT_OID] = 3
+      T2.PROD_ORDR_NBR
+    , SUBSTRING(
+          T2.CNFRM_NBR,
+          PATINDEX('%[^0 ]%', T2.CNFRM_NBR + ' '),
+          LEN(T2.CNFRM_NBR)
+      ) AS CNFRM_NBR
+    , T2.WRK_CNTR_CD
+    , T2.LNG_TXT
+    , T1.DOC_NBR
+    , T1.VLD_FRM_DT
+FROM LatestBOM T1
+INNER JOIN EligibleOperations T2
+    ON T1.PROD_ORDR_NBR = T2.PROD_ORDR_NBR
+   AND T2.LNG_TXT LIKE '%' + T1.DOC_NBR + '%';
 "
             ]
-        ),
-
-    #"Added Processed Long Text" =
-        Table.AddColumn(Source, "P_LNG_TXT", each CleanLongText([LNG_TXT]), type nullable text)
+        )
 in
-    #"Added Processed Long Text"
+    Source

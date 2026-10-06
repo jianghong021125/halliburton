@@ -117,7 +117,7 @@ LEFT JOIN (
 
 WHERE
     A1.[MPM_ORDR_OPR_STAT_CD] = 'C'
-    AND A1.[OPR_PLNT_OID] IN (3,4)
+    AND A1.[OPR_PLNT_OID] = 3
     AND G1.[PLNT_CD] = '2088'
     AND A1.[ACT_CMPL_DT] >= '2024-01-01'
 
@@ -133,24 +133,6 @@ WHERE
                 {"PLANT", type text},
                 {"COST_CNTR", type text}
             }
-        ),
-
-    #"Merged Long Text" =
-        Table.NestedJoin(
-            #"Changed Type",
-            {"CNFRM_NBR"},
-            #"Confirmation Number <-> LNG_TXT",
-            {"CNFRM_NBR"},
-            "Long Text",
-            JoinKind.LeftOuter
-        ),
-
-    #"Expanded Long Text" =
-        Table.ExpandTableColumn(
-            #"Merged Long Text",
-            "Long Text",
-            {"LNG_TXT", "P_LNG_TXT"},
-            {"LNG_TXT", "P_LNG_TXT"}
         )
 in
-    #"Expanded Long Text"
+    #"Changed Type"
