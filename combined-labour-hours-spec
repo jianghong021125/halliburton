@@ -1,5 +1,5 @@
 let
-    // Power BI query name: Testing Hours By PF.
+    // Power BI query name: Testing Hours.
     CharactersAfterPrefix = 13,
     SpecDelimiters = {
         ",", ";", ":", ".", "/", Character.FromNumber(92), "|",
