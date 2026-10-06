@@ -1,7 +1,7 @@
 let
-    // Power BI query name: Final Testing By PF (last 3 years).
-    // Inherits the date range from Testing Hours By PF.
-    Source = #"Testing Hours By PF",
+    // Power BI query name: Final Testing By PF (Since 2024).
+    // Inherits the date range from Testing Hours.
+    Source = #"Testing Hours",
 
     #"Merged Materials" =
         Table.NestedJoin(
