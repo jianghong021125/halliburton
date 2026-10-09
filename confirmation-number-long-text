@@ -7,7 +7,18 @@ let
             "AP101_MPM",
             [
                 Query = "
-WITH EligibleOperations AS
+WITH LaborHistory AS
+(
+    SELECT
+          CNFRM_NBR
+        , MIN(LBR_STRT_DT) AS LBR_STRT_DT
+    FROM AP101_MPM.dbo.LBR_HIST
+    WHERE PLNT_OID IN (3,4)
+      AND DEL_FLG = 0
+      AND LBR_TYPE_CD <> 'I'
+    GROUP BY CNFRM_NBR
+),
+EligibleOperations AS
 (
     SELECT
           P.PROD_ORDR_NBR
@@ -23,11 +34,13 @@ WITH EligibleOperations AS
         ON W.OID = O.WRK_CNTR_OID
     INNER JOIN AP101_MPM.dbo.PLNT G
         ON G.OID = O.OPR_PLNT_OID
+    INNER JOIN LaborHistory H
+        ON H.CNFRM_NBR = O.CNFRM_NBR
     WHERE P.PLNT_OID = 3
       AND O.OPR_PLNT_OID = 3
       AND G.PLNT_CD = '2088'
       AND O.MPM_ORDR_OPR_STAT_CD = 'C'
-      AND O.ACT_CMPL_DT >= '2024-01-01'
+      AND H.LBR_STRT_DT > '2024-01-01'
       AND L.LNG_TXT IS NOT NULL
 ),
 BOM_CTE AS

@@ -68,8 +68,12 @@ class LookupTests(unittest.TestCase):
             CREATE TABLE PROD_ORDR_OPR (
                 OID INTEGER, PROD_ORDR_OID INTEGER, CNFRM_NBR TEXT,
                 WRK_CNTR_OID INTEGER, OPR_PLNT_OID INTEGER,
-                MPM_ORDR_OPR_STAT_CD TEXT, ACT_CMPL_DT TEXT);
+                MPM_ORDR_OPR_STAT_CD TEXT, ACT_STRT_DT TEXT, ACT_CMPL_DT TEXT);
             CREATE TABLE PROD_ORDR_OPR_LNG (PROD_ORDR_OPR_OID INTEGER, LNG_TXT TEXT);
+            CREATE TABLE LBR_HIST (
+                CNFRM_NBR TEXT, PLNT_OID INTEGER, DEL_FLG INTEGER,
+                LBR_TYPE_CD TEXT, LBR_SCNDS REAL, QTY_CMPL REAL,
+                LBR_STRT_DT TEXT, LBR_END_DT TEXT);
             CREATE TABLE WRK_CNTR (OID INTEGER, WRK_CNTR_CD TEXT);
             CREATE TABLE PLNT (OID INTEGER, PLNT_CD TEXT);
             CREATE TABLE PROD_ORDR_BOM (OID INTEGER, PROD_ORDR_OID INTEGER);
@@ -102,23 +106,43 @@ class LookupTests(unittest.TestCase):
         self.operation(1, " 000123", text='ES-T-82 ES-T-82 ES-P-12 91K01234 ABC-123 (ES-T-99) "ES-T-77" DOC-A1 WILDxyzZ COMPONENT-DOC')
         self.operation(2, "000124")
         self.operation(3, "000125", plant=4)
-        self.operation(4, "000126", date="2023-12-31")
+        self.operation(4, "000126", labor_start="2023-12-31", operation_end="2099-01-01")
         self.operation(5, "000127", status="O")
         self.operation(6, "000128", order=2)
         self.operation(7, "000129", work_center=99)
         self.operation(8, "000130", text=None)
         self.operation(9, "000131", has_long_text=False)
         self.operation(10, "000132", text="No matching document")
-        self.operation(11, "000133", date="2024-01-01", text="ES-T82-REV")
+        self.operation(11, "000133", labor_start="2024-01-01", text="ES-T82-REV")
         self.operation(12, "000134", order=3)
+        self.operation(13, "000135", labor_start="2024-01-02", text="ES-T82-REV")
+        self.operation(14, "000136", labor_start="2025-01-01")
+        self.operation(15, "000137", labor_start="2024-01-01 08:00:00")
+        self.labor("000136", start="2023-12-31", end="2025-01-02")
+        self.labor("000124", start="2020-01-01", end="2020-01-02", deleted=1)
+        self.labor("000124", start="2020-01-01", end="2020-01-02", labor_type="I")
+        self.labor("000124", start="2020-01-01", end="2020-01-02", plant=5)
+        self.labor(" 000123", start="2025-07-01", end="2025-07-03", seconds=1800, quantity=2)
         self.db.execute("INSERT INTO PROD_ORDR_OPR_LNG VALUES (1, 'ES-T-82')")
 
-    def operation(self, oid, confirmation, *, order=1, plant=3, date="2025-06-01",
-                  status="C", work_center=1, text="ES-T-82", has_long_text=True):
-        self.db.execute("INSERT INTO PROD_ORDR_OPR VALUES (?, ?, ?, ?, ?, ?, ?)",
-                        (oid, order, confirmation, work_center, plant, status, date))
+    def operation(self, oid, confirmation, *, order=1, plant=3,
+                  operation_start="1900-01-01", operation_end="1900-01-02",
+                  labor_start="2025-06-01", labor_end="2025-06-02",
+                  status="C", work_center=1, text="ES-T-82",
+                  has_long_text=True, has_labor=True):
+        self.db.execute("INSERT INTO PROD_ORDR_OPR VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (oid, order, confirmation, work_center, plant, status,
+                         operation_start, operation_end))
         if has_long_text:
             self.db.execute("INSERT INTO PROD_ORDR_OPR_LNG VALUES (?, ?)", (oid, text))
+        if has_labor:
+            self.labor(confirmation, start=labor_start, end=labor_end)
+
+    def labor(self, confirmation, *, start, end, plant=3, deleted=0,
+              labor_type="R", seconds=3600, quantity=1):
+        self.db.execute("INSERT INTO LBR_HIST VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        (confirmation, plant, deleted, labor_type, seconds,
+                         quantity, start, end))
 
     def lookup(self):
         return self.db.execute(sqlite_sql(SQL)).fetchall()
@@ -127,14 +151,29 @@ class LookupTests(unittest.TestCase):
         cursor = self.db.execute(sqlite_sql(SQL))
         self.assertEqual([c[0] for c in cursor.description],
                          ["PROD_ORDR_NBR", "CNFRM_NBR", "WRK_CNTR_CD", "LNG_TXT", "DOC_NBR", "VLD_FRM_DT"])
-        self.assertEqual({r[1] for r in cursor}, {"123", "124", "133"})
+        self.assertEqual({r[1] for r in cursor}, {"123", "124", "135", "137"})
 
     def test_scope_excludes_each_ineligible_operation(self):
         confirmations = {r[1] for r in self.lookup()}
-        for excluded in ("125", "126", "127", "128", "129", "130", "131", "132", "134"):
+        for excluded in ("125", "126", "127", "128", "129", "130", "131", "132", "133", "134", "136"):
             with self.subTest(confirmation=excluded):
                 self.assertNotIn(excluded, confirmations)
-        self.assertIn("133", confirmations)  # Includes the exact start-date boundary.
+        self.assertIn("135", confirmations)  # Starts one day after the strict cutoff.
+        self.assertIn("137", confirmations)  # A later timestamp on January 1 is after midnight.
+
+    def test_labor_dates_control_scope_not_operation_dates(self):
+        confirmations = {r[1] for r in self.lookup()}
+        self.assertIn("124", confirmations)  # Operation dates are 1900; labor starts in 2025.
+        self.assertNotIn("126", confirmations)  # Operation ends in 2099; labor starts in 2023.
+
+    def test_labor_summary_uses_all_valid_rows_only(self):
+        summary = self.db.execute("""
+            SELECT SUM(LBR_SCNDS), SUM(QTY_CMPL), MIN(LBR_STRT_DT), MAX(LBR_END_DT)
+            FROM LBR_HIST
+            WHERE CNFRM_NBR = ' 000123'
+              AND PLNT_OID IN (3,4) AND DEL_FLG = 0 AND LBR_TYPE_CD <> 'I'
+        """).fetchone()
+        self.assertEqual(summary, (5400.0, 3.0, "2025-06-01", "2025-07-03"))
 
     def test_operation_plant_code_is_required(self):
         self.db.execute("UPDATE PLNT SET PLNT_CD = '9999' WHERE OID = 3")
@@ -160,7 +199,16 @@ class LookupTests(unittest.TestCase):
             WHERE L.LNG_TXT IS NOT NULL
               AND O.OPR_PLNT_OID = 3
               AND O.MPM_ORDR_OPR_STAT_CD = 'C'
-              AND O.ACT_CMPL_DT >= '2024-01-01'
+              AND EXISTS (
+                  SELECT 1
+                  FROM AP101_MPM.dbo.LBR_HIST H
+                  WHERE H.CNFRM_NBR = O.CNFRM_NBR
+                    AND H.PLNT_OID IN (3,4)
+                    AND H.DEL_FLG = 0
+                    AND H.LBR_TYPE_CD <> 'I'
+                  GROUP BY H.CNFRM_NBR
+                  HAVING MIN(H.LBR_STRT_DT) > '2024-01-01'
+              )
               AND EXISTS (SELECT 1 FROM AP101_MPM.dbo.PLNT G
                           WHERE G.OID = O.OPR_PLNT_OID AND G.PLNT_CD = '2088')
         """)
@@ -201,8 +249,28 @@ class ScriptContractTests(unittest.TestCase):
         source = (ROOT / "spec-testing-hours").read_text()
         self.assertIn("A1.[OPR_PLNT_OID] = 3", source)
         self.assertIn("WHERE PLNT_OID IN (3,4)", source)  # Labor-history scope stays unchanged.
+        self.assertIn("AND DEL_FLG = 0", source)
+        self.assertIn("AND LBR_TYPE_CD <> 'I'", source)
+        self.assertIn("GROUP BY [CNFRM_NBR]", source)
+        self.assertIn("SUM([LBR_SCNDS]) / 3600.00", source)
+        self.assertIn("SUM([QTY_CMPL]) AS [QTY_CMPL]", source)
+        self.assertIn("MIN([LBR_STRT_DT]) AS [LBR_STRT_DT]", source)
+        self.assertIn("MAX([LBR_END_DT]) AS [LBR_END_DT]", source)
+        self.assertIn("T1.[LBR_STRT_DT] > '2024-01-01'", source)
+        self.assertIn("DATEPART(YEAR, T1.[LBR_END_DT])", source)
+        self.assertIn("INNER JOIN (", source)
+        self.assertNotIn("A1.[ACT_STRT_DT]", source)
+        self.assertNotIn("A1.[ACT_CMPL_DT]", source)
         self.assertNotIn("LNG_TXT", source)
         self.assertNotIn("Table.NestedJoin", source)
+
+    def test_lookup_uses_aggregated_labor_start_scope(self):
+        self.assertIn("WITH LaborHistory AS", SQL)
+        self.assertIn("MIN(LBR_STRT_DT) AS LBR_STRT_DT", SQL)
+        self.assertIn("INNER JOIN LaborHistory H", SQL)
+        self.assertIn("H.LBR_STRT_DT > '2024-01-01'", SQL)
+        self.assertNotIn("O.ACT_STRT_DT", SQL)
+        self.assertNotIn("O.ACT_CMPL_DT", SQL)
 
     def test_final_query_contract(self):
         source = (ROOT / "final-testing-by-pf").read_text()
@@ -214,6 +282,10 @@ class ScriptContractTests(unittest.TestCase):
         self.assertIn('Parts{0} & "-" & Text.Select(Parts{1}, {"A".."Z"})', source)
         self.assertRegex(source, r'else\s+\[DOC_NBR\]')
         self.assertIn('Format = "M/dd/yyyy"', source)
+        self.assertIn('"LBR_STRT_DT"', source)
+        self.assertIn('"LBR_END_DT"', source)
+        self.assertNotIn('"ACT_STRT_DT"', source)
+        self.assertNotIn('"ACT_CMPL_DT"', source)
         self.assertRegex(source, r'Table.ReplaceValue\(\s*#"Expanded Specifications",\s*null,\s*"",\s*Replacer.ReplaceValue,\s*\{"Specification", "Specification Pillar"\}')
         for forbidden in ('#"Testing Hours"', '#"Testing Hours By PF"', "ES SPECS", "P_LNG_TXT", "Table.Buffer", "Table.Distinct", "Table.Sort", "Table.SelectRows", "ACT_TM_WEIGHTED"):
             self.assertNotIn(forbidden, source)

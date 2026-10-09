@@ -18,4 +18,4 @@ The final query sources `Anchor Table Testing` directly and left-joins `Material
 
 The later specification join can legitimately expand rows further. Compare the material-merge row count with Anchor separately from the final specification-expanded count. Unmatched materials remain with null attributes; only unmatched specification/pillar values are replaced with empty text.
 
-No material-source or hierarchy filtering rules have changed. The final table inherits Anchor's fixed completion-date cutoff of 2024-01-01 and operation OPR_PLNT_OID = 3. Native date/time values remain in Anchor; the final table retains the existing date-as-text display format.
+No material-source or hierarchy filtering rules have changed. The final table inherits Anchor's strict `LBR_STRT_DT > '2024-01-01'` cutoff and operation `OPR_PLNT_OID = 3`. Native `LBR_STRT_DT`/`LBR_END_DT` values remain in Anchor; the final table formats those labor-history dates as text.
