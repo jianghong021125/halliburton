@@ -44,13 +44,4 @@ No PBIX/model file is included in this repository. Repository edits do not autom
 
 The lookup filters operations and restricts BOM ranking in SQL. The final query selects narrow inputs, formats dates before expansion, and calculates pillars on the lookup before joining. No large-table buffering, full-table sorting, blanket deduplication, or error-swallowing fallback is added. CTEs do not guarantee materialization or physical execution order. Do not assume downstream M joins fold into these native SQL statements or that references share a cache; measure actual refresh time and database execution plans.
 
-Run the local regression suite:
-
-```sh
-python3 -B -m unittest discover -s tests -v
-node tests/parse-power-query.cjs /absolute/path/to/@microsoft/powerquery-parser
-```
-
-The Python suite runs adapted SQL on synthetic SQLite data and independent final-join/pillar reference models; it does not execute SQL Server or the M engine. The Node check uses Microsoft's M syntax parser, not a Power Query runtime.
-
 Live acceptance checks: compare lookup results with the original SQL restricted to the same eligible operations and labor histories; verify lookup keys and material/hierarchy uniqueness; verify all Anchor rows survive the final left joins and each expanded row retains its source ACT_TM. Expect differences from the old ES-occurrence extractor, excluding operation plant 4, and changing the cutoff to earliest labor start. The strict timestamp comparison excludes exactly midnight at the boundary but includes later January 1 timestamps. Investigate unexpected multiplicity rather than silently deduplicating. SQL Server execution, collation behavior, runtime types, and full PBIX refresh must still be checked against the actual database.
